@@ -1,0 +1,38 @@
+# General
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Cursor
+.cursor/
+
+# Node.js
+node_modules/
+dist/
+coverage/
+.npm/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Build artifacts
+build/
+out/
+.cache/
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# OS sync tools
+.DS_Store?
+~$*
