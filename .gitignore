@@ -6,9 +6,6 @@ Thumbs.db
 *.swp
 *.swo
 
-# Cursor
-.cursor/
-
 # Node.js
 node_modules/
 dist/
@@ -32,6 +29,9 @@ out/
 .vscode/
 .idea/
 *.code-workspace
+
+# Cursor
+.cursor/
 
 # OS sync tools
 .DS_Store?
