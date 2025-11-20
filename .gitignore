@@ -5,6 +5,7 @@ Thumbs.db
 *.tmp
 *.swp
 *.swo
+docs/specification.txt
 
 # Node.js
 node_modules/
