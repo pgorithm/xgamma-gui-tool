@@ -48,5 +48,4 @@ desktop.ini
 .eslintcache
 
 # Cursor rules
-.cursor\rules/*
-.cursor/*
+.cursor/
