@@ -1,0 +1,4 @@
+"""
+xgamma GUI Tool package.
+"""
+

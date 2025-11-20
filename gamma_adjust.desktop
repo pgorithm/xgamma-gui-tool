@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=xgamma Gamma Adjustment
+Comment=Applied by xgamma GUI Tool
+Exec=xgamma -rgamma 1.0 -ggamma 1.0 -bgamma 1.0
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+
