@@ -331,4 +331,3 @@ class GammaMainWindow(QMainWindow):
             slider.blockSignals(False)
         
         self.isUpdating = False
-

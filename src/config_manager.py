@@ -113,4 +113,3 @@ X-GNOME-Autostart-enabled=true
                     continue
         
         return False
-

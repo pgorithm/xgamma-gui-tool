@@ -155,4 +155,3 @@ class GammaCore:
                 parts.extend(['-bgamma', str(blue)])
         
         return ' '.join(parts)
-

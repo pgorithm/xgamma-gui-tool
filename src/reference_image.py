@@ -121,4 +121,3 @@ class ReferenceImageGenerator:
         gradient.setColorAt(1, endColor)
         
         painter.fillRect(x, y, width, height, gradient)
-

@@ -6,4 +6,3 @@ Exec=xgamma -rgamma 1.0 -ggamma 1.0 -bgamma 1.0
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
-
