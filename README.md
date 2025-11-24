@@ -79,6 +79,7 @@ python3 main.py
 - **Individual channel control**: Adjust red, green, and blue gamma values separately
 - **Overall gamma control**: Adjust all channels simultaneously
 - **Real-time preview**: See changes immediately on the reference test pattern
+- **Keyboard adjustments**: Click any slider once and fine-tune it with the ←/→ arrow keys (hold Shift for larger steps)
 - **Autostart support**: Save settings to be applied automatically on system startup
 - **Reset function**: Quickly reset all values to default (1.0) and remove autostart entries
 
@@ -87,6 +88,7 @@ python3 main.py
 - **Reference image**: Test pattern with gradients and color blocks for visual calibration
 - **Sliders**: Horizontal sliders for each color channel (Red, Green, Blue) and overall gamma (All)
 - **Value inputs**: Numeric fields showing current slider values (editable)
+- **Keyboard control**: Click a slider or value field to focus it, then use the keyboard arrows (Shift+arrow for 10× steps) to adjust without using the mouse
 - **Reset button**: Resets all values to 1.0 and removes autostart entries
 - **Save to Autostart button**: Saves current settings to be applied on system startup
 
@@ -117,13 +119,22 @@ xgamma_gui_tool/
 
 ## Autostart
 
-When you click "Save to Autostart", the application creates a desktop file in `~/.config/autostart/` that runs the xgamma command on system startup. The "Reset" button removes all xgamma-related entries from autostart.
+When you click "Apply", the application creates a desktop file in `~/.config/autostart/` that runs the xgamma command on system startup. The "Reset" button removes all xgamma-related entries from autostart.
 
 ## Error Handling
 
 - If xgamma is not installed, the application will display a warning message with installation instructions and exit
 - Invalid numeric inputs are automatically corrected
-- Status messages appear in the status bar at the bottom of the window (no modal dialogs)
+- Status messages appear in the status bar at the bottom of the window
+- Warnings appear if gamma manipulation might be limited
+
+## Checking Gamma Control Support
+
+Some environments prevent xgamma from changing the picture. Use these checks before assuming the app is broken:
+
+- **In-app warning indicator**: A yellow warning icon appears whenever the tool detects a virtual machine or HDR/10-bit output pipeline; hover it to read the exact reason.
+- **Virtual machines**: Run `systemd-detect-virt` (expect `none` on bare metal) or inspect `/sys/class/dmi/id/product_name`. If virtualization is detected, enable GPU pass-through/3D acceleration or switch to a native Linux session because many VM display drivers ignore gamma commands.
+- **HDR or 10-bit modes**: Run `xrandr --verbose | grep -i "hdr\|10 bpc\|10-bit"` to see whether an HDR pipeline is active. Disable the HDR toggle in your desktop environment or force 8-bit color before retrying, because X11 gamma ramps are bypassed when HDR is enabled.
 
 ## License
 
