@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (
     QSizePolicy, QMessageBox, QApplication
 )
 from PyQt5.QtCore import Qt, QEvent
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QPixmap, QFontMetrics
 from .gamma_core import GammaCore
 from .reference_image import ReferenceImageGenerator
 from .config_manager import ConfigManager
@@ -43,6 +43,11 @@ class GammaMainWindow(QMainWindow):
         mainLayout.setSpacing(15)
         mainLayout.setContentsMargins(15, 15, 15, 15)
         
+        # Reference title clarifies that the pattern itself stays static
+        self.referenceTitleLabel = QLabel('Static Reference')
+        self.referenceTitleLabel.setAlignment(Qt.AlignCenter)
+        mainLayout.addWidget(self.referenceTitleLabel)
+        
         # Create reference image
         self.imageGenerator = ReferenceImageGenerator(600, 300)
         self.referenceLabel = QLabel()
@@ -63,13 +68,16 @@ class GammaMainWindow(QMainWindow):
             ('blue', 'Blue'),
             ('all', 'All')
         ]
+        fontMetrics = QFontMetrics(self.font())
+        maxLabelWidth = max(fontMetrics.width(f'{label}:') for _, label in channels) + 10
         
         for channel, label in channels:
             sliderLayout = QHBoxLayout()
             
             # Label
             channelLabel = QLabel(f'{label}:')
-            channelLabel.setMinimumWidth(60)
+            channelLabel.setFixedWidth(maxLabelWidth)
+            channelLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
             sliderLayout.addWidget(channelLabel)
             
             # Slider

@@ -20,8 +20,9 @@ Run the following commands one by one in the terminal:
 ```bash
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y python3 python3-venv python3-pip git x11-xserver-utils
-git clone https://github.com/pgorithm/xgamma_gui_tool.git
-cd xgamma_gui_tool
+wget https://github.com/pgorithm/xgamma_gui_tool/archive/refs/heads/main.zip -O xgamma_gui_tool.zip
+unzip xgamma_gui_tool.zip
+cd xgamma_gui_tool-main
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
