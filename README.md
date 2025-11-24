@@ -8,10 +8,26 @@ xgamma GUI Tool provides a simple, minimalist interface for adjusting gamma corr
 
 ## Requirements
 
-- Linux Mint / Ubuntu (tested on Ubuntu 20.04 LTS, Ubuntu 22.04 LTS, Linux Mint 20.x, Linux Mint 21.x)
+- Linux Mint / Ubuntu (tested on Linux Mint 21.x)
 - Python 3.8 or higher
 - xgamma (x11-xserver-utils package)
 - PyQt5
+
+## Quick setup (fresh system)
+
+Run the following commands one by one in the terminal:
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y python3 python3-venv python3-pip git x11-xserver-utils
+git clone https://github.com/pgorithm/xgamma_gui_tool.git
+cd xgamma_gui_tool
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+python3 main.py
+```
 
 ## Installation
 

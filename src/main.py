@@ -29,7 +29,7 @@ def checkDependencies():
             "After installation, please restart the application."
         )
     
-    return True, ""
+    return True, "Ok"
 
 
 def main():
