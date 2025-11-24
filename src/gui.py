@@ -106,7 +106,7 @@ class GammaMainWindow(QMainWindow):
         
         buttonLayout.addStretch()
         
-        self.saveButton = QPushButton('Save to Autostart')
+        self.saveButton = QPushButton('Apply')
         self.saveButton.clicked.connect(self._onSaveClicked)
         buttonLayout.addWidget(self.saveButton)
         
@@ -298,9 +298,9 @@ class GammaMainWindow(QMainWindow):
         
         # Save to autostart
         if self.configManager.saveToAutostart(command):
-            self.statusBar.showMessage('Settings saved to autostart', 3000)
+            self.statusBar.showMessage('Settings applied and saved to autostart', 3000)
         else:
-            self.statusBar.showMessage('Error: Failed to save to autostart', 3000)
+            self.statusBar.showMessage('Error: Failed to apply and save to autostart', 3000)
     
     def _loadCurrentGamma(self):
         """Load current gamma values from system."""
