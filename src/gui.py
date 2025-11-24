@@ -86,7 +86,7 @@ class GammaMainWindow(QMainWindow):
             valueInput = QLineEdit()
             valueInput.setMinimumWidth(60)
             valueInput.setMaximumWidth(60)
-            valueInput.setText('1.0')
+            valueInput.setText('1.00')
             valueInput.setAlignment(Qt.AlignCenter)
             valueInput.editingFinished.connect(
                 lambda ch=channel: self._onValueInputChanged(ch)
@@ -264,7 +264,7 @@ class GammaMainWindow(QMainWindow):
         # Reset all sliders to 1.0
         for channel in ['red', 'green', 'blue', 'all']:
             self.sliders[channel].setValue(100)  # 1.0 * 100
-            self.valueInputs[channel].setText('1.0')
+            self.valueInputs[channel].setText('1.00')
         
         # Unblock signals
         for slider in self.sliders.values():
