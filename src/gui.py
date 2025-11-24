@@ -3,16 +3,35 @@ Main GUI module for xgamma GUI Tool.
 Implements PyQt5 interface with sliders, reference image, and control buttons.
 """
 
+import subprocess
+
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSlider, QLabel, QPushButton, QLineEdit, QStatusBar,
-    QSizePolicy, QMessageBox, QApplication
+    QSizePolicy, QApplication, QDialog,
+    QDialogButtonBox
 )
-from PyQt5.QtCore import Qt, QEvent
-from PyQt5.QtGui import QPixmap, QFontMetrics
+from PyQt5.QtCore import Qt, QEvent, QSize
+from PyQt5.QtGui import QPixmap, QFontMetrics, QPainter, QPen, QBrush, QColor, QIcon
 from .gamma_core import GammaCore
 from .reference_image import ReferenceImageGenerator
 from .config_manager import ConfigManager
+
+
+class SettingsDialog(QDialog):
+    """Minimal modal settings placeholder."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('Settings')
+        self.setModal(True)
+        layout = QVBoxLayout(self)
+        infoLabel = QLabel('WIP, sorry')
+        infoLabel.setWordWrap(True)
+        layout.addWidget(infoLabel)
+        buttonBox = QDialogButtonBox(QDialogButtonBox.Close)
+        buttonBox.rejected.connect(self.reject)
+        layout.addWidget(buttonBox)
 
 
 class GammaMainWindow(QMainWindow):
@@ -32,6 +51,7 @@ class GammaMainWindow(QMainWindow):
         self.isUpdating = False  # Flag to prevent circular updates
         self.activeChannel = None  # Tracks slider controlled via keyboard
         self.widgetChannel = {}
+        self.warningMessages = []
         
         self.setWindowTitle('xgamma GUI Tool')
         self.setMinimumSize(600, 500)
@@ -42,6 +62,22 @@ class GammaMainWindow(QMainWindow):
         mainLayout = QVBoxLayout(centralWidget)
         mainLayout.setSpacing(15)
         mainLayout.setContentsMargins(15, 15, 15, 15)
+        
+        # Top panel with action icons
+        topPanel = QHBoxLayout()
+        topPanel.addStretch()
+        self.settingsButton = self._buildIconButton(
+            self._createGearIcon(),
+            'Settings',
+            self._openSettingsDialog
+        )
+        topPanel.addWidget(self.settingsButton)
+        self.warningIconLabel = QLabel()
+        self.warningIconLabel.setVisible(False)
+        self.warningIconLabel.setAlignment(Qt.AlignCenter)
+        self.warningIconLabel.setFixedSize(32, 32)
+        topPanel.addWidget(self.warningIconLabel)
+        mainLayout.addLayout(topPanel)
         
         # Reference title clarifies that the pattern itself stays static
         self.referenceTitleLabel = QLabel('Static Reference')
@@ -133,6 +169,7 @@ class GammaMainWindow(QMainWindow):
         
         # Load current gamma values from system
         self._loadCurrentGamma()
+        self._collectEnvironmentWarnings()
         
         app = QApplication.instance()
         if app:
@@ -246,6 +283,125 @@ class GammaMainWindow(QMainWindow):
         
         self._updateReferenceImage()
         self.isUpdating = False
+    
+    def _buildIconButton(self, icon, tooltip, handler):
+        """Create flat icon button."""
+        button = QPushButton()
+        button.setFlat(True)
+        button.setCursor(Qt.PointingHandCursor)
+        button.setIcon(icon)
+        button.setIconSize(QSize(22, 22))
+        button.setToolTip(tooltip)
+        button.clicked.connect(handler)
+        button.setFixedSize(32, 32)
+        return button
+    
+    def _createGearIcon(self):
+        """Build gear icon pixmap."""
+        size = 24
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        pen = QPen(QColor('#2f2f2f'))
+        pen.setWidth(2)
+        painter.setPen(pen)
+        painter.drawEllipse(6, 6, 12, 12)
+        for angle in range(0, 360, 60):
+            painter.save()
+            painter.translate(size / 2, size / 2)
+            painter.rotate(angle)
+            painter.drawLine(0, -10, 0, -6)
+            painter.restore()
+        painter.end()
+        return QIcon(pixmap)
+    
+    def _createWarningIcon(self):
+        """Build warning icon pixmap."""
+        size = 24
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setBrush(QBrush(QColor('#f6c343')))
+        painter.setPen(QPen(QColor('#b8860b'), 1))
+        painter.drawEllipse(1, 1, size - 2, size - 2)
+        painter.setPen(QPen(Qt.black, 2))
+        painter.drawLine(size / 2, 6, size / 2, 14)
+        painter.drawPoint(size / 2, 18)
+        painter.end()
+        return QPixmap(pixmap)
+    
+    def _openSettingsDialog(self):
+        """Show settings modal."""
+        dialog = SettingsDialog(self)
+        dialog.exec_()
+    
+    def _collectEnvironmentWarnings(self):
+        """Gather warning messages and update indicator."""
+        messages = []
+        if self._isVirtualMachine():
+            messages.append('VM environment may limit gamma adjustment.')
+        if self._isHdrPipelineActive():
+            messages.append('HDR or 10-bit mode may disable manual gamma adjustment.')
+        self.warningMessages = messages
+        self._updateWarningIndicator()
+    
+    def _updateWarningIndicator(self):
+        """Show or hide warning icon with tooltip."""
+        hasWarnings = bool(self.warningMessages)
+        self.warningIconLabel.setVisible(hasWarnings)
+        if hasWarnings:
+            self.warningIconLabel.setPixmap(self._createWarningIcon())
+            tooltip = '\n'.join(self.warningMessages)
+            self.warningIconLabel.setToolTip(tooltip)
+        else:
+            self.warningIconLabel.setToolTip('')
+    
+    def _readSystemHint(self, path):
+        """Read single line helper."""
+        try:
+            with open(path, 'r', encoding='utf-8', errors='ignore') as file:
+                return file.readline().strip()
+        except (FileNotFoundError, PermissionError, OSError):
+            return ''
+    
+    def _isVirtualMachine(self):
+        """Best-effort VM detection."""
+        keywords = ['virtualbox', 'vmware', 'kvm', 'qemu', 'hyper-v', 'parallels']
+        hints = [
+            self._readSystemHint('/sys/class/dmi/id/product_name'),
+            self._readSystemHint('/sys/class/dmi/id/sys_vendor')
+        ]
+        for hint in hints:
+            lowered = hint.lower()
+            if lowered and any(word in lowered for word in keywords):
+                return True
+        try:
+            result = subprocess.run(
+                ['systemd-detect-virt'],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            return result.returncode == 0 and result.stdout.strip() not in ('none', '')
+        except (FileNotFoundError, subprocess.TimeoutExpired, PermissionError):
+            return False
+    
+    def _isHdrPipelineActive(self):
+        """Detect HDR or 10-bit modes via xrandr output."""
+        try:
+            result = subprocess.run(
+                ['xrandr', '--verbose'],
+                capture_output=True,
+                text=True,
+                timeout=3
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired, PermissionError):
+            return False
+        text = result.stdout.lower()
+        hdrTokens = ['hdr', '10 bpc', '10-bit', 'deep color']
+        return any(token in text for token in hdrTokens)
     
     def _onValueInputChanged(self, channel):
         """
