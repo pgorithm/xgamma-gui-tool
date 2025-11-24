@@ -34,14 +34,14 @@ def checkDependencies():
 
 def main():
     """Main application entry point."""
-    # Create QApplication
+    # Создаем QApplication
     app = QApplication(sys.argv)
     app.setApplicationName('xgamma GUI Tool')
     
-    # Check dependencies
+    # Проверяем зависимости (xgamma)
     isAvailable, errorMessage = checkDependencies()
     if not isAvailable:
-        # Show error message and exit
+        # Показываем сообщение об ошибке и выходим
         msgBox = QMessageBox()
         msgBox.setIcon(QMessageBox.Warning)
         msgBox.setWindowTitle('xgamma GUI Tool - Missing Dependency')
@@ -51,15 +51,15 @@ def main():
         msgBox.exec_()
         sys.exit(1)
     
-    # Initialize core components
+    # Инициализируем основные компоненты
     gammaCore = GammaCore()
     configManager = ConfigManager()
     
-    # Create and show main window
+    # Создаем и отображаем главное окно
     mainWindow = GammaMainWindow(gammaCore, configManager)
     mainWindow.show()
     
-    # Run application
+    # Запускаем приложение
     sys.exit(app.exec_())
 
 

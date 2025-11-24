@@ -48,22 +48,22 @@ class GammaMainWindow(QMainWindow):
         super().__init__()
         self.gammaCore = gammaCore
         self.configManager = configManager
-        self.isUpdating = False  # Flag to prevent circular updates
-        self.activeChannel = None  # Tracks slider controlled via keyboard
+        self.isUpdating = False  # Флаг, предотвращающий циклические обновления
+        self.activeChannel = None  # Отслеживает ползунок, которым управляют с клавиатуры
         self.widgetChannel = {}
         self.warningMessages = []
         
         self.setWindowTitle('xgamma GUI Tool')
         self.setMinimumSize(600, 500)
         
-        # Create central widget and layout
+        # Создаем центральный виджет и компоновку
         centralWidget = QWidget()
         self.setCentralWidget(centralWidget)
         mainLayout = QVBoxLayout(centralWidget)
         mainLayout.setSpacing(15)
         mainLayout.setContentsMargins(15, 15, 15, 15)
         
-        # Top panel with action icons
+        # Верхняя панель с иконками действий
         topPanel = QHBoxLayout()
         topPanel.addStretch()
         self.settingsButton = self._buildIconButton(
@@ -79,12 +79,12 @@ class GammaMainWindow(QMainWindow):
         topPanel.addWidget(self.warningIconLabel)
         mainLayout.addLayout(topPanel)
         
-        # Reference title clarifies that the pattern itself stays static
+        # В заголовке указываем, что эталонное изображение при изменении гаммы остается статичным
         self.referenceTitleLabel = QLabel('Static Reference')
         self.referenceTitleLabel.setAlignment(Qt.AlignCenter)
         mainLayout.addWidget(self.referenceTitleLabel)
         
-        # Create reference image
+        # Создаем эталонное изображение
         self.imageGenerator = ReferenceImageGenerator(600, 300)
         self.referenceLabel = QLabel()
         self.referenceLabel.setAlignment(Qt.AlignCenter)
@@ -94,7 +94,7 @@ class GammaMainWindow(QMainWindow):
         self._updateReferenceImage()
         mainLayout.addWidget(self.referenceLabel)
         
-        # Create sliders and value inputs
+        # Создаем слайдеры и поля значений
         self.sliders = {}
         self.valueInputs = {}
         
@@ -110,13 +110,13 @@ class GammaMainWindow(QMainWindow):
         for channel, label in channels:
             sliderLayout = QHBoxLayout()
             
-            # Label
+            # Подпись
             channelLabel = QLabel(f'{label}:')
             channelLabel.setFixedWidth(maxLabelWidth)
             channelLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
             sliderLayout.addWidget(channelLabel)
             
-            # Slider
+            # Ползунок
             slider = QSlider(Qt.Horizontal)
             slider.setMinimum(1)  # 0.01 * 100
             slider.setMaximum(500)  # 5.0 * 100
@@ -129,7 +129,7 @@ class GammaMainWindow(QMainWindow):
             self.sliders[channel] = slider
             sliderLayout.addWidget(slider)
             
-            # Value input
+            # Поле ввода значения
             valueInput = QLineEdit()
             valueInput.setMinimumWidth(60)
             valueInput.setMaximumWidth(60)
@@ -144,7 +144,7 @@ class GammaMainWindow(QMainWindow):
             
             mainLayout.addLayout(sliderLayout)
         
-        # Create control buttons
+        # Создаем кнопки управления
         buttonLayout = QHBoxLayout()
         buttonLayout.addStretch()
         
@@ -162,12 +162,12 @@ class GammaMainWindow(QMainWindow):
         
         mainLayout.addLayout(buttonLayout)
         
-        # Create status bar
+        # Создаем строку состояния
         self.statusBar = QStatusBar()
         self.setStatusBar(self.statusBar)
         self.statusBar.showMessage('Ready')
         
-        # Load current gamma values from system
+        # Загружаем текущие значения гаммы из системы
         self._loadCurrentGamma()
         self._collectEnvironmentWarnings()
         
@@ -238,7 +238,7 @@ class GammaMainWindow(QMainWindow):
         gamma = self._sliderValueToGamma(value)
         
         if channel == 'all':
-            # Set all RGB sliders to the same value (block signals to prevent recursion)
+            # Выравниваем все RGB-ползунки (блокируем сигналы, чтобы избежать рекурсии)
             self.sliders['red'].blockSignals(True)
             self.sliders['green'].blockSignals(True)
             self.sliders['blue'].blockSignals(True)
@@ -251,19 +251,20 @@ class GammaMainWindow(QMainWindow):
             self.sliders['green'].blockSignals(False)
             self.sliders['blue'].blockSignals(False)
             
-            # Update value inputs
+            # Обновляем поля значений
             self.valueInputs['red'].setText(f'{gamma:.2f}')
             self.valueInputs['green'].setText(f'{gamma:.2f}')
             self.valueInputs['blue'].setText(f'{gamma:.2f}')
             self.valueInputs['all'].setText(f'{gamma:.2f}')
             
-            # Apply gamma
+            # Применяем гамму
             self.gammaCore.applyGamma(overall=gamma)
         else:
-            # Update individual channel
+            # Обновляем конкретный канал
             self.valueInputs[channel].setText(f'{gamma:.2f}')
             
-            # Update 'all' slider to average of RGB (block signals to prevent recursion)
+            # Синхронизируем ползунок "all" со средним по RGB (тоже блокируем сигналы)
+            # Возможно, в будущем его нужно будет нахрен убрать
             redGamma = self._sliderValueToGamma(self.sliders['red'].value())
             greenGamma = self._sliderValueToGamma(self.sliders['green'].value())
             blueGamma = self._sliderValueToGamma(self.sliders['blue'].value())
@@ -275,7 +276,7 @@ class GammaMainWindow(QMainWindow):
             self.sliders['all'].blockSignals(False)
             self.valueInputs['all'].setText(f'{avgGamma:.2f}')
             
-            # Apply gamma
+            # Применяем гамму
             red = self._sliderValueToGamma(self.sliders['red'].value())
             green = self._sliderValueToGamma(self.sliders['green'].value())
             blue = self._sliderValueToGamma(self.sliders['blue'].value())
@@ -418,20 +419,20 @@ class GammaMainWindow(QMainWindow):
             text = valueInput.text().strip()
             gamma = float(text)
             
-            # Validate range
+            # Проверяем диапазон
             if gamma < GammaCore.MIN_GAMMA:
                 gamma = GammaCore.MIN_GAMMA
             elif gamma > GammaCore.MAX_GAMMA:
                 gamma = GammaCore.MAX_GAMMA
             
-            # Update slider
+            # Обновляем ползунок
             sliderValue = self._gammaToSliderValue(gamma)
             self.sliders[channel].setValue(sliderValue)
             
-            # Trigger slider change handler
+            # Вызываем обработчик изменения ползунка
             self._onSliderChanged(channel, sliderValue)
         except ValueError:
-            # Invalid input, restore previous value
+            # Некорректное значение, возвращаем предыдущее
             if channel == 'all':
                 avgGamma = (
                     self._sliderValueToGamma(self.sliders['red'].value()) +
@@ -447,23 +448,23 @@ class GammaMainWindow(QMainWindow):
         """Handle reset button click."""
         self.isUpdating = True
         
-        # Block signals to prevent triggering updates during reset
+        # Блокируем сигналы, чтобы не запускать обновления во время сброса
         for slider in self.sliders.values():
             slider.blockSignals(True)
         
-        # Reset all sliders to 1.0
+        # Сбрасываем все ползунки на 1.00
         for channel in ['red', 'green', 'blue', 'all']:
             self.sliders[channel].setValue(100)  # 1.0 * 100
             self.valueInputs[channel].setText('1.00')
         
-        # Unblock signals
+        # Снимаем блокировку сигналов
         for slider in self.sliders.values():
             slider.blockSignals(False)
         
-        # Apply default gamma
+        # Применяем гамму по умолчанию
         self.gammaCore.applyGamma(overall=1.0)
         
-        # Remove from autostart
+        # Удаляем из автозапуска
         if self.configManager.removeFromAutostart():
             self.statusBar.showMessage('Reset to defaults and removed from autostart', 3000)
         else:
@@ -474,19 +475,19 @@ class GammaMainWindow(QMainWindow):
     
     def _onSaveClicked(self):
         """Handle save button click."""
-        # Get current gamma values
+        # Получаем текущие значения гаммы
         red = self._sliderValueToGamma(self.sliders['red'].value())
         green = self._sliderValueToGamma(self.sliders['green'].value())
         blue = self._sliderValueToGamma(self.sliders['blue'].value())
         
-        # Build xgamma command
+        # Формируем команду xgamma
         command = self.gammaCore.buildXgammaCommand(red=red, green=green, blue=blue)
         
         if not command:
             self.statusBar.showMessage('Error: xgamma not available', 3000)
             return
         
-        # Save to autostart
+        # Сохраняем в автозапуск
         if self.configManager.saveToAutostart(command):
             self.statusBar.showMessage('Settings applied and saved to autostart', 3000)
         else:
@@ -498,11 +499,11 @@ class GammaMainWindow(QMainWindow):
         
         self.isUpdating = True
         
-        # Block signals to prevent triggering updates during initialization
+        # Блокируем сигналы, чтобы исключить лишние обновления при инициализации
         for slider in self.sliders.values():
             slider.blockSignals(True)
         
-        # Set sliders and inputs
+        # Выставляем значения ползунков и полей
         self.sliders['red'].setValue(self._gammaToSliderValue(current['red']))
         self.sliders['green'].setValue(self._gammaToSliderValue(current['green']))
         self.sliders['blue'].setValue(self._gammaToSliderValue(current['blue']))
@@ -511,12 +512,12 @@ class GammaMainWindow(QMainWindow):
         self.valueInputs['green'].setText(f"{current['green']:.2f}")
         self.valueInputs['blue'].setText(f"{current['blue']:.2f}")
         
-        # Calculate and set 'all' value
+        # Считаем и задаем значение для «all»
         avgGamma = (current['red'] + current['green'] + current['blue']) / 3.0
         self.sliders['all'].setValue(self._gammaToSliderValue(avgGamma))
         self.valueInputs['all'].setText(f'{avgGamma:.2f}')
         
-        # Unblock signals
+        # Снимаем блокировку сигналов
         for slider in self.sliders.values():
             slider.blockSignals(False)
         

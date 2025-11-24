@@ -28,19 +28,19 @@ class ReferenceImageGenerator:
         Returns:
             QPixmap: Generated reference image
         """
-        # Create QImage for drawing
+        # Создаем QImage для отрисовки
         image = QImage(self.width, self.height, QImage.Format_RGB32)
         painter = QPainter(image)
         painter.setRenderHint(QPainter.Antialiasing)
         
-        # Fill background with neutral gray
+        # Заполняем фон нейтральным серым
         painter.fillRect(0, 0, self.width, self.height, QColor(128, 128, 128))
         
-        # Draw horizontal gradient bars for each channel
+        # Рисуем горизонтальные градиентные полосы для каждого канала
         barHeight = self.height // 4
         margin = 10
         
-        # Red gradient bar
+        # Градиент для красного канала
         self._drawGradientBar(
             painter,
             0, margin,
@@ -50,7 +50,7 @@ class ReferenceImageGenerator:
             Qt.Horizontal
         )
         
-        # Green gradient bar
+        # Градиент для зеленого канала
         self._drawGradientBar(
             painter,
             0, barHeight + margin,
@@ -60,7 +60,7 @@ class ReferenceImageGenerator:
             Qt.Horizontal
         )
         
-        # Blue gradient bar
+        # Градиент для синего канала
         self._drawGradientBar(
             painter,
             0, barHeight * 2 + margin,
@@ -70,21 +70,21 @@ class ReferenceImageGenerator:
             Qt.Horizontal
         )
         
-        # Color blocks section at the bottom
+        # Блок цветовых образцов внизу
         blockY = barHeight * 3
         blockHeight = barHeight - margin * 2
         blockWidth = self.width // 8
         
-        # Draw color blocks: Red, Green, Blue, Yellow, Cyan, Magenta, White, Black
+        # Отрисовываем блоки: красный, зеленый, синий, желтый, циан, магента (маджента?), белый, черный
         colors = [
-            QColor(255, 0, 0),      # Red
-            QColor(0, 255, 0),      # Green
-            QColor(0, 0, 255),      # Blue
-            QColor(255, 255, 0),    # Yellow
-            QColor(0, 255, 255),    # Cyan
-            QColor(255, 0, 255),    # Magenta
-            QColor(255, 255, 255),  # White
-            QColor(0, 0, 0)         # Black
+            QColor(255, 0, 0),      # Красный
+            QColor(0, 255, 0),      # Зеленый
+            QColor(0, 0, 255),      # Синий
+            QColor(255, 255, 0),    # Желтый
+            QColor(0, 255, 255),    # Циан
+            QColor(255, 0, 255),    # Маджента
+            QColor(255, 255, 255),  # Белый
+            QColor(0, 0, 0)         # Черный
         ]
         
         for i, color in enumerate(colors):
@@ -97,7 +97,7 @@ class ReferenceImageGenerator:
         
         painter.end()
         
-        # Convert to QPixmap
+        # Конвертируем в QPixmap
         return QPixmap.fromImage(image)
     
     def _drawGradientBar(self, painter, x, y, width, height, startColor, endColor, orientation):

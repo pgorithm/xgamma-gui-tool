@@ -53,7 +53,7 @@ class GammaCore:
             }
         
         try:
-            # Run xgamma without parameters to get current values
+            # Запускаем xgamma без параметров, чтобы получить текущие значения гаммы
             result = subprocess.run(
                 [self.xgammaPath],
                 capture_output=True,
@@ -61,7 +61,7 @@ class GammaCore:
                 timeout=5
             )
             
-            # Parse output like: "-> Red  1.000, Green  1.000, Blue  1.000"
+            # Разбираем вывод наподобие: "-> Red  1.000, Green  1.000, Blue  1.000"
             output = result.stdout
             redMatch = re.search(r'Red\s+([\d.]+)', output)
             greenMatch = re.search(r'Green\s+([\d.]+)', output)
@@ -77,7 +77,7 @@ class GammaCore:
                 'blue': blue
             }
         except (subprocess.TimeoutExpired, ValueError, AttributeError, Exception):
-            # Return default values on any error
+            # При любой ошибке возвращаем значения по умолчанию
             return {
                 'red': self.DEFAULT_GAMMA,
                 'green': self.DEFAULT_GAMMA,
@@ -100,14 +100,14 @@ class GammaCore:
         if not self.isXgammaAvailable():
             return False
         
-        # Build command arguments
+        # Формируем аргументы для команды
         args = [self.xgammaPath]
         
         if overall is not None:
-            # Apply overall gamma to all channels
+            # Применяем общее значение гаммы ко всем каналам
             args.extend(['-gamma', str(overall)])
         else:
-            # Apply individual channel values
+            # Применяем значения для отдельных каналов
             if red is not None:
                 args.extend(['-rgamma', str(red)])
             if green is not None:

@@ -36,7 +36,7 @@ class ConfigManager:
             bool: True if saved successfully, False otherwise
         """
         try:
-            # Create desktop file content
+            # Формируем содержимое desktop-файла
             desktopContent = f"""[Desktop Entry]
 Type=Application
 Name=xgamma Gamma Adjustment
@@ -47,10 +47,10 @@ NoDisplay=false
 X-GNOME-Autostart-enabled=true
 """
             
-            # Write to desktop file
+            # Записываем desktop-файл
             self.desktopFile.write_text(desktopContent, encoding='utf-8')
             
-            # Make file executable
+            # Делаем файл исполняемым
             os.chmod(self.desktopFile, 0o755)
             
             return True
@@ -68,23 +68,22 @@ X-GNOME-Autostart-enabled=true
         try:
             removed = False
             
-            # Remove our desktop file if it exists
+            # Удаляем наш desktop-файл, если он есть
             if self.desktopFile.exists():
                 self.desktopFile.unlink()
                 removed = True
             
-            # Scan all desktop files in autostart directory
-            # and remove any that contain xgamma commands
+            # Просматриваем все desktop-файлы в каталоге автозапуска и удаляем те, где встречается команда xgamma
             if self.autostartDir.exists():
                 for desktopFile in self.autostartDir.glob('*.desktop'):
                     try:
                         content = desktopFile.read_text(encoding='utf-8')
-                        # Check if file contains xgamma command
+                        # Проверяем, содержит ли файл команду xgamma
                         if 'xgamma' in content.lower():
                             desktopFile.unlink()
                             removed = True
                     except Exception:
-                        # Skip files that can't be read
+                        # Пропускаем файлы, которые не удалось прочитать
                         continue
             
             return removed
@@ -98,11 +97,11 @@ X-GNOME-Autostart-enabled=true
         Returns:
             bool: True if xgamma is in autostart, False otherwise
         """
-        # Check our desktop file
+        # Проверяем наш desktop-файл
         if self.desktopFile.exists():
             return True
         
-        # Check other desktop files for xgamma
+        # Ищем xgamma в остальных desktop-файлах
         if self.autostartDir.exists():
             for desktopFile in self.autostartDir.glob('*.desktop'):
                 try:
