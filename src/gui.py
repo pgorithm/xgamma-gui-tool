@@ -6,9 +6,9 @@ Implements PyQt5 interface with sliders, reference image, and control buttons.
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSlider, QLabel, QPushButton, QLineEdit, QStatusBar,
-    QSizePolicy, QMessageBox
+    QSizePolicy, QMessageBox, QApplication
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QPixmap
 from .gamma_core import GammaCore
 from .reference_image import ReferenceImageGenerator
@@ -30,6 +30,8 @@ class GammaMainWindow(QMainWindow):
         self.gammaCore = gammaCore
         self.configManager = configManager
         self.isUpdating = False  # Flag to prevent circular updates
+        self.activeChannel = None  # Tracks slider controlled via keyboard
+        self.widgetChannel = {}
         
         self.setWindowTitle('xgamma GUI Tool')
         self.setMinimumSize(600, 500)
@@ -79,6 +81,7 @@ class GammaMainWindow(QMainWindow):
             slider.valueChanged.connect(
                 lambda value, ch=channel: self._onSliderChanged(ch, value)
             )
+            self.widgetChannel[slider] = channel
             self.sliders[channel] = slider
             sliderLayout.addWidget(slider)
             
@@ -91,6 +94,7 @@ class GammaMainWindow(QMainWindow):
             valueInput.editingFinished.connect(
                 lambda ch=channel: self._onValueInputChanged(ch)
             )
+            self.widgetChannel[valueInput] = channel
             self.valueInputs[channel] = valueInput
             sliderLayout.addWidget(valueInput)
             
@@ -121,6 +125,10 @@ class GammaMainWindow(QMainWindow):
         
         # Load current gamma values from system
         self._loadCurrentGamma()
+        
+        app = QApplication.instance()
+        if app:
+            app.installEventFilter(self)
     
     def _updateReferenceImage(self):
         """Update reference image display."""
@@ -150,6 +158,24 @@ class GammaMainWindow(QMainWindow):
             int: Slider value (1-500)
         """
         return int(gamma * 100)
+    
+    def _setActiveChannel(self, channel):
+        """Mark channel as keyboard-controlled."""
+        self.activeChannel = channel
+    
+    def _clearActiveChannel(self):
+        """Reset keyboard-controlled channel."""
+        self.activeChannel = None
+    
+    def _adjustActiveSlider(self, delta):
+        """Adjust active slider value by delta ticks."""
+        if not self.activeChannel:
+            return
+        
+        slider = self.sliders[self.activeChannel]
+        newValue = max(slider.minimum(), min(slider.maximum(), slider.value() + delta))
+        if newValue != slider.value():
+            slider.setValue(newValue)
     
     def _onSliderChanged(self, channel, value):
         """
@@ -331,3 +357,19 @@ class GammaMainWindow(QMainWindow):
             slider.blockSignals(False)
         
         self.isUpdating = False
+    
+    def eventFilter(self, obj, event):
+        """Handle global mouse and keyboard events for slider control."""
+        if event.type() == QEvent.MouseButtonPress:
+            channel = self.widgetChannel.get(obj)
+            if channel:
+                self._setActiveChannel(channel)
+            else:
+                self._clearActiveChannel()
+        elif event.type() == QEvent.KeyPress and self.activeChannel:
+            if event.key() in (Qt.Key_Left, Qt.Key_Right):
+                step = 10 if (event.modifiers() & Qt.ShiftModifier) else 1
+                delta = step if event.key() == Qt.Key_Right else -step
+                self._adjustActiveSlider(delta)
+                return True
+        return super().eventFilter(obj, event)
