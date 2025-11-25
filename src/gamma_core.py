@@ -48,11 +48,7 @@ class GammaCore:
         """
         if not self.isXgammaAvailable():
             self.lastRawOutput = 'xgamma not available'  # Нет бинарника — нет вывода
-            return {
-                'red': self.DEFAULT_GAMMA,
-                'green': self.DEFAULT_GAMMA,
-                'blue': self.DEFAULT_GAMMA
-            }
+            return self._defaultGammaValues()
         
         try:
             # Запускаем xgamma без параметров, чтобы получить текущие значения гаммы
@@ -64,29 +60,27 @@ class GammaCore:
             )
             
             # Разбираем вывод наподобие: "-> Red  1.000, Green  1.000, Blue  1.000"
-            output = result.stdout
-            self.lastRawOutput = output  # Сохраняем сырой вывод для дальнейшего анализа
-            redMatch = re.search(r'Red\s+([\d.]+)', output)
-            greenMatch = re.search(r'Green\s+([\d.]+)', output)
-            blueMatch = re.search(r'Blue\s+([\d.]+)', output)
+            rawOutput = (result.stdout or '').strip() or (result.stderr or '').strip()
+            self.lastRawOutput = rawOutput  # Сохраняем сырой вывод для дальнейшего анализа
+            parsedGamma = self._parseGammaFromString(rawOutput)
+            if parsedGamma:
+                return parsedGamma
             
-            red = float(redMatch.group(1)) if redMatch else self.DEFAULT_GAMMA
-            green = float(greenMatch.group(1)) if greenMatch else self.DEFAULT_GAMMA
-            blue = float(blueMatch.group(1)) if blueMatch else self.DEFAULT_GAMMA
+            # Пробуем получить данные через xrandr как запасной вариант
+            fallbackGamma = self._readGammaFromXrandr()
+            if fallbackGamma:
+                self.lastRawOutput = 'xrandr fallback: {}'.format(fallbackGamma)
+                return fallbackGamma
             
-            return {
-                'red': red,
-                'green': green,
-                'blue': blue
-            }
+            return self._defaultGammaValues()
         except (subprocess.TimeoutExpired, ValueError, AttributeError, Exception) as error:
-            # При любой ошибке возвращаем значения по умолчанию
+            # При любой ошибке пробуем fallback, иначе значения по умолчанию
             self.lastRawOutput = str(error)
-            return {
-                'red': self.DEFAULT_GAMMA,
-                'green': self.DEFAULT_GAMMA,
-                'blue': self.DEFAULT_GAMMA
-            }
+            fallbackGamma = self._readGammaFromXrandr()
+            if fallbackGamma:
+                self.lastRawOutput = 'xrandr fallback after error: {}'.format(fallbackGamma)
+                return fallbackGamma
+            return self._defaultGammaValues()
 
     def getLastRawOutput(self):
         """Return raw stdout from latest xgamma call."""
@@ -163,3 +157,53 @@ class GammaCore:
                 parts.extend(['-bgamma', str(blue)])
         
         return ' '.join(parts)
+
+    def _defaultGammaValues(self):
+        """Return fallback gamma values."""
+        return {
+            'red': self.DEFAULT_GAMMA,
+            'green': self.DEFAULT_GAMMA,
+            'blue': self.DEFAULT_GAMMA
+        }
+
+    def _parseGammaFromString(self, text):
+        """Parse gamma triplet from xgamma stdout/stderr."""
+        if not text:
+            return None
+        redMatch = re.search(r'Red\s+([\d.]+)', text)
+        greenMatch = re.search(r'Green\s+([\d.]+)', text)
+        blueMatch = re.search(r'Blue\s+([\d.]+)', text)
+        if not (redMatch and greenMatch and blueMatch):
+            return None
+        try:
+            return {
+                'red': float(redMatch.group(1)),
+                'green': float(greenMatch.group(1)),
+                'blue': float(blueMatch.group(1))
+            }
+        except ValueError:
+            return None
+
+    def _readGammaFromXrandr(self):
+        """Fallback gamma detection using xrandr --verbose output."""
+        try:
+            result = subprocess.run(
+                ['xrandr', '--verbose'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired, PermissionError):
+            return None
+        
+        match = re.search(r'Gamma:\s*([\d.]+):([\d.]+):([\d.]+)', result.stdout)
+        if not match:
+            return None
+        try:
+            return {
+                'red': float(match.group(1)),
+                'green': float(match.group(2)),
+                'blue': float(match.group(3))
+            }
+        except ValueError:
+            return None

@@ -54,7 +54,7 @@ class GammaMainWindow(QMainWindow):
         self.warningMessages = []
         
         self.setWindowTitle('xgamma GUI Tool')
-        self.setMinimumSize(600, 500)
+        self.setMinimumSize(600, 650)
         
         # Создаем центральный виджет и компоновку
         centralWidget = QWidget()
@@ -71,12 +71,12 @@ class GammaMainWindow(QMainWindow):
             'Settings',
             self._openSettingsDialog
         )
-        topPanel.addWidget(self.settingsButton)
         self.warningIconLabel = QLabel()
         self.warningIconLabel.setVisible(False)
         self.warningIconLabel.setAlignment(Qt.AlignCenter)
         self.warningIconLabel.setFixedSize(32, 32)
         topPanel.addWidget(self.warningIconLabel)
+        topPanel.addWidget(self.settingsButton)
         mainLayout.addLayout(topPanel)
         
         # В заголовке указываем, что эталонное изображение при изменении гаммы остается статичным
