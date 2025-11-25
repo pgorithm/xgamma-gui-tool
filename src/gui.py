@@ -321,6 +321,7 @@ class GammaMainWindow(QMainWindow):
     def _createWarningIcon(self):
         """Build warning icon pixmap."""
         size = 24
+        center = size // 2  # центр иконки для целочисленных координат
         pixmap = QPixmap(size, size)
         pixmap.fill(Qt.transparent)
         painter = QPainter(pixmap)
@@ -329,8 +330,8 @@ class GammaMainWindow(QMainWindow):
         painter.setPen(QPen(QColor('#b8860b'), 1))
         painter.drawEllipse(1, 1, size - 2, size - 2)
         painter.setPen(QPen(Qt.black, 2))
-        painter.drawLine(size / 2, 6, size / 2, 14)
-        painter.drawPoint(size / 2, 18)
+        painter.drawLine(center, 6, center, 14)
+        painter.drawPoint(center, 18)
         painter.end()
         return QPixmap(pixmap)
     
