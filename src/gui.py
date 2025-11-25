@@ -170,6 +170,7 @@ class GammaMainWindow(QMainWindow):
         # Загружаем текущие значения гаммы из системы
         self._loadCurrentGamma()
         self._collectEnvironmentWarnings()
+        self._emitStartupStatusEvent()
         
         app = QApplication.instance()
         if app:
@@ -347,6 +348,14 @@ class GammaMainWindow(QMainWindow):
             messages.append('HDR or 10-bit mode may disable manual gamma adjustment.')
         self.warningMessages = messages
         self._updateWarningIndicator()
+
+    def _emitStartupStatusEvent(self):
+        """Send raw xgamma output to status bar for debugging."""
+        rawOutput = self.gammaCore.getLastRawOutput()
+        if rawOutput:
+            self.statusBar.showMessage(rawOutput)
+        else:
+            self.statusBar.showMessage('No xgamma output captured')
     
     def _updateWarningIndicator(self):
         """Show or hide warning icon with tooltip."""

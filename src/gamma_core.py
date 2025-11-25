@@ -18,6 +18,7 @@ class GammaCore:
     def __init__(self):
         """Initialize GammaCore and check xgamma availability."""
         self.xgammaPath = self._findXgamma()
+        self.lastRawOutput = ''  # Последний stdout от xgamma для отладки
     
     def _findXgamma(self):
         """
@@ -46,6 +47,7 @@ class GammaCore:
                   Returns default values (1.0) if xgamma is not available or on error.
         """
         if not self.isXgammaAvailable():
+            self.lastRawOutput = 'xgamma not available'  # Нет бинарника — нет вывода
             return {
                 'red': self.DEFAULT_GAMMA,
                 'green': self.DEFAULT_GAMMA,
@@ -63,6 +65,7 @@ class GammaCore:
             
             # Разбираем вывод наподобие: "-> Red  1.000, Green  1.000, Blue  1.000"
             output = result.stdout
+            self.lastRawOutput = output  # Сохраняем сырой вывод для дальнейшего анализа
             redMatch = re.search(r'Red\s+([\d.]+)', output)
             greenMatch = re.search(r'Green\s+([\d.]+)', output)
             blueMatch = re.search(r'Blue\s+([\d.]+)', output)
@@ -76,13 +79,18 @@ class GammaCore:
                 'green': green,
                 'blue': blue
             }
-        except (subprocess.TimeoutExpired, ValueError, AttributeError, Exception):
+        except (subprocess.TimeoutExpired, ValueError, AttributeError, Exception) as error:
             # При любой ошибке возвращаем значения по умолчанию
+            self.lastRawOutput = str(error)
             return {
                 'red': self.DEFAULT_GAMMA,
                 'green': self.DEFAULT_GAMMA,
                 'blue': self.DEFAULT_GAMMA
             }
+
+    def getLastRawOutput(self):
+        """Return raw stdout from latest xgamma call."""
+        return self.lastRawOutput
     
     def applyGamma(self, red=None, green=None, blue=None, overall=None):
         """
