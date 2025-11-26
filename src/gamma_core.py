@@ -18,7 +18,7 @@ class GammaCore:
     def __init__(self):
         """Initialize GammaCore and check xgamma availability."""
         self.xgammaPath = self._findXgamma()
-        self.lastRawOutput = ''  # Последний stdout от xgamma для отладки
+        self.lastRawOutput = ''  # Последний stdout от xgamma, для отладки
     
     def _findXgamma(self):
         """

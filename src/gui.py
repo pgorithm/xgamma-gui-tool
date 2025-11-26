@@ -12,7 +12,10 @@ from PyQt5.QtWidgets import (
     QDialogButtonBox
 )
 from PyQt5.QtCore import Qt, QEvent, QSize
-from PyQt5.QtGui import QPixmap, QFontMetrics, QPainter, QPen, QBrush, QColor, QIcon
+from PyQt5.QtGui import (
+    QPixmap, QFontMetrics, QPainter, QPen, QBrush,
+    QColor, QIcon, QDoubleValidator
+)
 from .gamma_core import GammaCore
 from .reference_image import ReferenceImageGenerator
 from .config_manager import ConfigManager
@@ -52,6 +55,7 @@ class GammaMainWindow(QMainWindow):
         self.activeChannel = None  # Отслеживает ползунок, которым управляют с клавиатуры
         self.widgetChannel = {}
         self.warningMessages = []
+        self.currentGamma = {'red': 1.0, 'green': 1.0, 'blue': 1.0}
         
         self.setWindowTitle('xgamma GUI Tool')
         self.setMinimumSize(600, 650)
@@ -79,11 +83,6 @@ class GammaMainWindow(QMainWindow):
         topPanel.addWidget(self.settingsButton)
         mainLayout.addLayout(topPanel)
         
-        # В заголовке указываем, что эталонное изображение при изменении гаммы остается статичным
-        self.referenceTitleLabel = QLabel('Static Reference')
-        self.referenceTitleLabel.setAlignment(Qt.AlignCenter)
-        mainLayout.addWidget(self.referenceTitleLabel)
-        
         # Создаем эталонное изображение
         self.imageGenerator = ReferenceImageGenerator(600, 300)
         self.referenceLabel = QLabel()
@@ -91,7 +90,7 @@ class GammaMainWindow(QMainWindow):
         self.referenceLabel.setMinimumHeight(300)
         self.referenceLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.referenceLabel.setScaledContents(True)
-        self._updateReferenceImage()
+        self._updateReferenceImage(self.currentGamma)
         mainLayout.addWidget(self.referenceLabel)
         
         # Создаем слайдеры и поля значений
@@ -133,8 +132,17 @@ class GammaMainWindow(QMainWindow):
             valueInput = QLineEdit()
             valueInput.setMinimumWidth(60)
             valueInput.setMaximumWidth(60)
-            valueInput.setText('1.00')
+            valueInput.setText('1.000')
             valueInput.setAlignment(Qt.AlignCenter)
+            # Ограничиваем ввод только числами с нужной точностью
+            validator = QDoubleValidator(
+                GammaCore.MIN_GAMMA,
+                GammaCore.MAX_GAMMA,
+                3,
+                valueInput
+            )
+            validator.setNotation(QDoubleValidator.StandardNotation)
+            valueInput.setValidator(validator)
             valueInput.editingFinished.connect(
                 lambda ch=channel: self._onValueInputChanged(ch)
             )
@@ -176,9 +184,11 @@ class GammaMainWindow(QMainWindow):
         if app:
             app.installEventFilter(self)
     
-    def _updateReferenceImage(self):
-        """Update reference image display."""
-        pixmap = self.imageGenerator.generateImage()
+    def _updateReferenceImage(self, gammaValues=None):
+        """Обновляем эталонное изображение с учетом текущей гаммы."""
+        if gammaValues is None:
+            gammaValues = self.currentGamma
+        pixmap = self.imageGenerator.generateImage(gammaValues)
         self.referenceLabel.setPixmap(pixmap)
     
     def _sliderValueToGamma(self, sliderValue):
@@ -253,16 +263,17 @@ class GammaMainWindow(QMainWindow):
             self.sliders['blue'].blockSignals(False)
             
             # Обновляем поля значений
-            self.valueInputs['red'].setText(f'{gamma:.2f}')
-            self.valueInputs['green'].setText(f'{gamma:.2f}')
-            self.valueInputs['blue'].setText(f'{gamma:.2f}')
-            self.valueInputs['all'].setText(f'{gamma:.2f}')
+            self.valueInputs['red'].setText(f'{gamma:.3f}')
+            self.valueInputs['green'].setText(f'{gamma:.3f}')
+            self.valueInputs['blue'].setText(f'{gamma:.3f}')
+            self.valueInputs['all'].setText(f'{gamma:.3f}')
             
             # Применяем гамму
+            self.currentGamma = {'red': gamma, 'green': gamma, 'blue': gamma}
             self.gammaCore.applyGamma(overall=gamma)
         else:
             # Обновляем конкретный канал
-            self.valueInputs[channel].setText(f'{gamma:.2f}')
+            self.valueInputs[channel].setText(f'{gamma:.3f}')
             
             # Синхронизируем ползунок "all" со средним по RGB (тоже блокируем сигналы)
             # Возможно, в будущем его нужно будет нахрен убрать
@@ -275,12 +286,13 @@ class GammaMainWindow(QMainWindow):
             self.sliders['all'].blockSignals(True)
             self.sliders['all'].setValue(avgSliderValue)
             self.sliders['all'].blockSignals(False)
-            self.valueInputs['all'].setText(f'{avgGamma:.2f}')
+            self.valueInputs['all'].setText(f'{avgGamma:.3f}')
             
             # Применяем гамму
             red = self._sliderValueToGamma(self.sliders['red'].value())
             green = self._sliderValueToGamma(self.sliders['green'].value())
             blue = self._sliderValueToGamma(self.sliders['blue'].value())
+            self.currentGamma = {'red': red, 'green': green, 'blue': blue}
             self.gammaCore.applyGamma(red=red, green=green, blue=blue)
         
         self._updateReferenceImage()
@@ -449,10 +461,10 @@ class GammaMainWindow(QMainWindow):
                     self._sliderValueToGamma(self.sliders['green'].value()) +
                     self._sliderValueToGamma(self.sliders['blue'].value())
                 ) / 3.0
-                self.valueInputs[channel].setText(f'{avgGamma:.2f}')
+                self.valueInputs[channel].setText(f'{avgGamma:.3f}')
             else:
                 gamma = self._sliderValueToGamma(self.sliders[channel].value())
-                self.valueInputs[channel].setText(f'{gamma:.2f}')
+                self.valueInputs[channel].setText(f'{gamma:.3f}')
     
     def _onResetClicked(self):
         """Handle reset button click."""
@@ -462,16 +474,17 @@ class GammaMainWindow(QMainWindow):
         for slider in self.sliders.values():
             slider.blockSignals(True)
         
-        # Сбрасываем все ползунки на 1.00
+        # Сбрасываем все ползунки на 1.000
         for channel in ['red', 'green', 'blue', 'all']:
             self.sliders[channel].setValue(100)  # 1.0 * 100
-            self.valueInputs[channel].setText('1.00')
+            self.valueInputs[channel].setText('1.000')
         
         # Снимаем блокировку сигналов
         for slider in self.sliders.values():
             slider.blockSignals(False)
         
         # Применяем гамму по умолчанию
+        self.currentGamma = {'red': 1.0, 'green': 1.0, 'blue': 1.0}
         self.gammaCore.applyGamma(overall=1.0)
         
         # Удаляем из автозапуска
@@ -518,14 +531,20 @@ class GammaMainWindow(QMainWindow):
         self.sliders['green'].setValue(self._gammaToSliderValue(current['green']))
         self.sliders['blue'].setValue(self._gammaToSliderValue(current['blue']))
         
-        self.valueInputs['red'].setText(f"{current['red']:.2f}")
-        self.valueInputs['green'].setText(f"{current['green']:.2f}")
-        self.valueInputs['blue'].setText(f"{current['blue']:.2f}")
+        self.valueInputs['red'].setText(f"{current['red']:.3f}")
+        self.valueInputs['green'].setText(f"{current['green']:.3f}")
+        self.valueInputs['blue'].setText(f"{current['blue']:.3f}")
         
         # Считаем и задаем значение для «all»
         avgGamma = (current['red'] + current['green'] + current['blue']) / 3.0
         self.sliders['all'].setValue(self._gammaToSliderValue(avgGamma))
-        self.valueInputs['all'].setText(f'{avgGamma:.2f}')
+        self.valueInputs['all'].setText(f'{avgGamma:.3f}')
+        self.currentGamma = {
+            'red': current['red'],
+            'green': current['green'],
+            'blue': current['blue']
+        }
+        self._updateReferenceImage(self.currentGamma)
         
         # Снимаем блокировку сигналов
         for slider in self.sliders.values():

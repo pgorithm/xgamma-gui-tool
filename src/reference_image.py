@@ -21,13 +21,16 @@ class ReferenceImageGenerator:
         self.width = width
         self.height = height
     
-    def generateImage(self):
+    def generateImage(self, gammaValues=None):
         """
         Generate reference test pattern image with gradients and color blocks.
         
         Returns:
             QPixmap: Generated reference image
         """
+        if gammaValues is None:
+            gammaValues = {'red': 1.0, 'green': 1.0, 'blue': 1.0}
+        
         # Создаем QImage для отрисовки
         image = QImage(self.width, self.height, QImage.Format_RGB32)
         painter = QPainter(image)
@@ -97,6 +100,9 @@ class ReferenceImageGenerator:
         
         painter.end()
         
+        # Применяем гамма-коррекцию к готовому паттерну
+        self._applyGammaToImage(image, gammaValues)
+        
         # Конвертируем в QPixmap
         return QPixmap.fromImage(image)
     
@@ -121,3 +127,23 @@ class ReferenceImageGenerator:
         gradient.setColorAt(1, endColor)
         
         painter.fillRect(x, y, width, height, gradient)
+
+    def _applyGammaToImage(self, image, gammaValues):
+        """Корректируем изображение согласно текущей гамме."""
+        redGamma = max(gammaValues.get('red', 1.0), 0.001)
+        greenGamma = max(gammaValues.get('green', 1.0), 0.001)
+        blueGamma = max(gammaValues.get('blue', 1.0), 0.001)
+        
+        for y in range(image.height()):
+            for x in range(image.width()):
+                color = QColor(image.pixel(x, y))
+                r = self._applyGammaChannel(color.red(), redGamma)
+                g = self._applyGammaChannel(color.green(), greenGamma)
+                b = self._applyGammaChannel(color.blue(), blueGamma)
+                image.setPixelColor(x, y, QColor(r, g, b))
+
+    def _applyGammaChannel(self, value, gamma):
+        """Применяем гамму к конкретному каналу."""
+        normalized = (value / 255.0) or 0.0
+        adjusted = pow(normalized, 1.0 / gamma) if normalized > 0 else 0.0
+        return int(max(0, min(255, round(adjusted * 255))))
