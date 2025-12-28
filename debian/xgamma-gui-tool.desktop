@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=xgamma GUI Tool
+Comment=Graphical tool for managing display gamma settings
+Exec=xgamma-gui-tool
+Icon=xgamma-gui-tool
+Categories=Settings;System;
+Terminal=false
+StartupNotify=true

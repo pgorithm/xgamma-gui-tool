@@ -6,6 +6,10 @@ Graphical tool for managing display gamma settings using the xgamma command on L
 
 xgamma GUI Tool provides a simple, minimalist interface for adjusting gamma correction for red, green, and blue channels individually or together. It allows you to preview changes in real-time and automatically apply saved settings on system startup.
 
+## Download
+
+Pre-built .deb packages are available in [Releases](https://github.com/pgorithm/xgamma_gui_tool/releases).
+
 ## Requirements
 
 - Linux Mint / Ubuntu (tested on Linux Mint 21.x)

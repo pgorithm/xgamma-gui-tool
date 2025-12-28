@@ -1,0 +1,31 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@ --with python3
+
+override_dh_auto_install:
+	# Устанавливаем файлы приложения
+	mkdir -p $(CURDIR)/debian/xgamma-gui-tool/usr/bin
+	mkdir -p $(CURDIR)/debian/xgamma-gui-tool/usr/share/xgamma-gui-tool
+	mkdir -p $(CURDIR)/debian/xgamma-gui-tool/usr/share/applications
+	
+	# Копируем исходные файлы
+	cp -r $(CURDIR)/src $(CURDIR)/debian/xgamma-gui-tool/usr/share/xgamma-gui-tool/
+	cp $(CURDIR)/main.py $(CURDIR)/debian/xgamma-gui-tool/usr/share/xgamma-gui-tool/
+	cp $(CURDIR)/requirements.txt $(CURDIR)/debian/xgamma-gui-tool/usr/share/xgamma-gui-tool/
+	
+	# Создаем исполняемый скрипт
+	cat > $(CURDIR)/debian/xgamma-gui-tool/usr/bin/xgamma-gui-tool << 'EOF'
+#!/usr/bin/env python3
+import sys
+sys.path.insert(0, "/usr/share/xgamma-gui-tool")
+from src.main import main
+if __name__ == "__main__":
+    main()
+EOF
+	chmod +x $(CURDIR)/debian/xgamma-gui-tool/usr/bin/xgamma-gui-tool
+	
+	# Копируем desktop файл
+	if [ -f $(CURDIR)/debian/xgamma-gui-tool.desktop ]; then \
+		cp $(CURDIR)/debian/xgamma-gui-tool.desktop $(CURDIR)/debian/xgamma-gui-tool/usr/share/applications/; \
+	fi

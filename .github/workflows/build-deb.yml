@@ -1,0 +1,101 @@
+name: Build DEB package
+
+# Этот workflow запускается автоматически при создании нового тега (релиза)
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    # Шаг 1: Получить код из репозитория
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    # Шаг 2: Настроить Python
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.8'
+        
+    # Шаг 3: Установить системные зависимости для сборки .deb пакетов
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          debhelper \
+          dh-python \
+          python3-all \
+          python3-setuptools \
+          python3-stdeb \
+          fakeroot
+        
+    # Шаг 4: Установить Python зависимости проекта
+    - name: Install Python dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        pip3 install -r requirements.txt
+        pip3 install stdeb
+        
+    # Шаг 5: Извлечь версию из тега (убираем префикс 'v' если есть)
+    - name: Extract version from tag
+      id: get_version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        VERSION=${VERSION#refs/tags/}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version extracted: $VERSION"
+        
+    # Шаг 6: Подготовить структуру для .deb пакета
+    - name: Prepare DEB package structure
+      run: |
+        # Создаем временную директорию для сборки
+        mkdir -p deb_build
+        cp -r debian deb_build/
+        cp -r src deb_build/
+        cp main.py deb_build/
+        cp requirements.txt deb_build/
+        cp README.md deb_build/
+        # Копируем desktop файл из debian/, если есть
+        if [ -f debian/xgamma-gui-tool.desktop ]; then
+          cp debian/xgamma-gui-tool.desktop deb_build/debian/
+        fi
+        # Делаем скрипты исполняемыми
+        chmod +x deb_build/debian/rules
+        chmod +x deb_build/debian/postinst
+        chmod +x deb_build/debian/postrm
+        
+    # Шаг 7: Обновить версию в control и changelog файлах
+    - name: Update version in package files
+      run: |
+        VERSION="${{ steps.get_version.outputs.version }}"
+        # Обновляем версию в control (в Source секции)
+        sed -i "/^Source:/,/^$/ s/^Version:.*/Version: ${VERSION}/" deb_build/debian/control
+        # Обновляем версию в changelog (первая строка)
+        sed -i "1s/(.*)/(${VERSION}-1)/" deb_build/debian/changelog
+        
+    # Шаг 8: Собрать .deb пакет
+    - name: Build DEB package
+      run: |
+        cd deb_build
+        # Используем dpkg-buildpackage для сборки
+        dpkg-buildpackage -us -uc -b
+        
+    # Шаг 9: Найти собранный .deb файл
+    - name: Find DEB package
+      id: find_deb
+      run: |
+        DEB_FILE=$(ls ../*.deb | head -n 1)
+        echo "deb_file=$DEB_FILE" >> $GITHUB_OUTPUT
+        echo "Found DEB package: $DEB_FILE"
+        
+    # Шаг 10: Прикрепить .deb пакет к релизу
+    - name: Upload DEB to release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ${{ steps.find_deb.outputs.deb_file }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

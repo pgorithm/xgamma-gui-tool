@@ -1,0 +1,5 @@
+main.py usr/share/xgamma-gui-tool/
+src usr/share/xgamma-gui-tool/
+requirements.txt usr/share/xgamma-gui-tool/
+debian/xgamma-gui-tool.desktop usr/share/applications/
+
