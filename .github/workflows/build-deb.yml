@@ -31,7 +31,8 @@ jobs:
           python3-all \
           python3-setuptools \
           python3-stdeb \
-          fakeroot
+          fakeroot \
+          devscripts
         
     # Шаг 4: Установить Python зависимости проекта
     - name: Install Python dependencies
@@ -67,28 +68,76 @@ jobs:
         chmod +x deb_build/debian/rules
         chmod +x deb_build/debian/postinst
         chmod +x deb_build/debian/postrm
+        # Проверяем, что все необходимые файлы на месте
+        echo "Checking required files..."
+        [ -f deb_build/debian/control ] || (echo "Error: debian/control not found!" && exit 1)
+        [ -f deb_build/debian/changelog ] || (echo "Error: debian/changelog not found!" && exit 1)
+        [ -f deb_build/debian/rules ] || (echo "Error: debian/rules not found!" && exit 1)
+        [ -d deb_build/src ] || (echo "Error: src directory not found!" && exit 1)
+        [ -f deb_build/main.py ] || (echo "Error: main.py not found!" && exit 1)
+        echo "All required files are present"
         
     # Шаг 7: Обновить версию в control и changelog файлах
     - name: Update version in package files
       run: |
         VERSION="${{ steps.get_version.outputs.version }}"
-        # Обновляем версию в control (в Source секции)
-        sed -i "/^Source:/,/^$/ s/^Version:.*/Version: ${VERSION}/" deb_build/debian/control
-        # Обновляем версию в changelog (первая строка)
-        sed -i "1s/(.*)/(${VERSION}-1)/" deb_build/debian/changelog
+        echo "Updating version to: ${VERSION}"
+        # Обновляем версию в control (ищем строку Version: и заменяем)
+        sed -i "s/^Version:.*/Version: ${VERSION}/" deb_build/debian/control
+        # Обновляем версию в changelog
+        # Формат: xgamma-gui-tool (1.0.0-1) unstable; urgency=low
+        # Используем более надёжный способ: заменяем всю первую строку
+        PACKAGE_NAME=$(head -n 1 deb_build/debian/changelog | cut -d' ' -f1)
+        sed -i "1s/^${PACKAGE_NAME} ([^)]*/${PACKAGE_NAME} (${VERSION}-1/" deb_build/debian/changelog
+        # Проверяем результат
+        echo "Control file version:"
+        grep "^Version:" deb_build/debian/control || (echo "ERROR: Version not found in control!" && exit 1)
+        echo "Changelog first line:"
+        head -n 1 deb_build/debian/changelog
+        # Проверяем формат changelog
+        if ! head -n 1 deb_build/debian/changelog | grep -q "(${VERSION}-1)"; then
+          echo "ERROR: Changelog version update failed!"
+          exit 1
+        fi
         
     # Шаг 8: Собрать .deb пакет
     - name: Build DEB package
       run: |
         cd deb_build
+        echo "Current directory: $(pwd)"
+        echo "Contents:"
+        ls -la
+        echo "Debian directory contents:"
+        ls -la debian/
+        echo "Starting build..."
         # Используем dpkg-buildpackage для сборки
-        dpkg-buildpackage -us -uc -b
+        # -us: не подписывать исходный код
+        # -uc: не подписывать changelog
+        # -b: собрать только бинарный пакет
+        # -jauto: использовать все доступные ядра для параллельной сборки
+        dpkg-buildpackage -us -uc -b -jauto || {
+          echo "Build failed with exit code: $?"
+          echo "Checking for build logs..."
+          ls -la ../*.build 2>/dev/null || echo "No .build files found"
+          cat ../*.build 2>/dev/null || true
+          echo "Checking for other log files..."
+          ls -la ../*.log 2>/dev/null || echo "No .log files found"
+          cat ../*.log 2>/dev/null || true
+          exit 1
+        }
+        echo "Build completed successfully!"
         
     # Шаг 9: Найти собранный .deb файл
     - name: Find DEB package
       id: find_deb
       run: |
-        DEB_FILE=$(ls ../*.deb | head -n 1)
+        # Ищем .deb файл в родительской директории
+        DEB_FILE=$(find .. -maxdepth 1 -name "*.deb" -type f | head -n 1)
+        if [ -z "$DEB_FILE" ]; then
+          echo "Error: DEB package not found!"
+          ls -la ../
+          exit 1
+        fi
         echo "deb_file=$DEB_FILE" >> $GITHUB_OUTPUT
         echo "Found DEB package: $DEB_FILE"
         
