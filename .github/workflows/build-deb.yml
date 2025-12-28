@@ -139,20 +139,46 @@ jobs:
           exit 1
         }
         echo "Build completed successfully!"
+        echo "Checking for .deb file in parent directory..."
+        DEB_COUNT=$(find .. -maxdepth 1 -name "*.deb" -type f 2>/dev/null | wc -l)
+        if [ "$DEB_COUNT" -eq 0 ]; then
+          echo "WARNING: .deb file not found after build!"
+          echo "Checking all files in parent directory:"
+          ls -la ../
+          echo "Checking for any .deb files recursively:"
+          find .. -name "*.deb" -type f 2>/dev/null || echo "No .deb files found anywhere"
+          echo "Checking build output for other files:"
+          ls -la ../*.changes 2>/dev/null || echo "No .changes file"
+          ls -la ../*.dsc 2>/dev/null || echo "No .dsc file"
+        else
+          echo "SUCCESS: Found $DEB_COUNT .deb file(s)!"
+          ls -lh ../*.deb
+        fi
         
     # Шаг 10: Найти собранный .deb файл
     - name: Find DEB package
       id: find_deb
       run: |
-        # Ищем .deb файл в родительской директории
-        DEB_FILE=$(find .. -maxdepth 1 -name "*.deb" -type f | head -n 1)
+        # Каждый шаг начинается с корневой директории проекта
+        # dpkg-buildpackage создает .deb в родительской директории от deb_build,
+        # то есть в корне проекта
+        echo "Current directory: $(pwd)"
+        echo "Searching for .deb files in current directory..."
+        ls -la *.deb 2>/dev/null || echo "No .deb files in current directory"
+        # Ищем .deb файл в корне проекта (где должен быть создан dpkg-buildpackage)
+        DEB_FILE=$(find . -maxdepth 1 -name "*.deb" -type f | head -n 1)
         if [ -z "$DEB_FILE" ]; then
-          echo "Error: DEB package not found!"
-          ls -la ../
+          echo "Error: DEB package not found in current directory!"
+          echo "Listing all files in current directory:"
+          ls -la
+          echo "Searching recursively for .deb files:"
+          find . -name "*.deb" -type f
           exit 1
         fi
-        echo "deb_file=$DEB_FILE" >> $GITHUB_OUTPUT
-        echo "Found DEB package: $DEB_FILE"
+        # Используем полный путь для следующего шага
+        DEB_FILE_ABS="$(pwd)/${DEB_FILE#./}"
+        echo "deb_file=$DEB_FILE_ABS" >> $GITHUB_OUTPUT
+        echo "Found DEB package: $DEB_FILE_ABS"
         
     # Шаг 11: Прикрепить .deb пакет к релизу
     - name: Upload DEB to release
