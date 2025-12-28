@@ -8,6 +8,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Указываем права доступа для работы с релизами
+    permissions:
+      contents: write  # Необходимо для загрузки файлов в релиз
     
     steps:
     # Шаг 1: Получить код из репозитория
@@ -41,13 +44,16 @@ jobs:
         pip3 install -r requirements.txt
         pip3 install stdeb
         
-    # Шаг 5: Извлечь версию из тега (убираем префикс 'v' если есть)
+    # Шаг 5: Извлечь версию из тега релиза (убираем префикс 'v' если есть)
     - name: Extract version from tag
       id: get_version
       run: |
-        VERSION=${GITHUB_REF#refs/tags/v}
-        VERSION=${VERSION#refs/tags/}
+        # Для события release используем tag_name из контекста события
+        TAG_NAME="${{ github.event.release.tag_name }}"
+        # Убираем префикс 'v' если есть
+        VERSION=${TAG_NAME#v}
         echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Tag name: $TAG_NAME"
         echo "Version extracted: $VERSION"
         
     # Шаг 6: Подготовить структуру для .deb пакета
@@ -185,5 +191,6 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         files: ${{ steps.find_deb.outputs.deb_file }}
+        tag_name: ${{ github.event.release.tag_name }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
