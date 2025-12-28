@@ -86,21 +86,38 @@ jobs:
         sed -i "s/^Version:.*/Version: ${VERSION}/" deb_build/debian/control
         # Обновляем версию в changelog
         # Формат: xgamma-gui-tool (1.0.0-1) unstable; urgency=low
-        # Используем более надёжный способ: заменяем всю первую строку
-        PACKAGE_NAME=$(head -n 1 deb_build/debian/changelog | cut -d' ' -f1)
-        sed -i "1s/^${PACKAGE_NAME} ([^)]*/${PACKAGE_NAME} (${VERSION}-1/" deb_build/debian/changelog
+        # Заменяем только версию в скобках, сохраняя остальной формат
+        sed -i "1s/([^)]*)/(${VERSION}-1)/" deb_build/debian/changelog
         # Проверяем результат
         echo "Control file version:"
         grep "^Version:" deb_build/debian/control || (echo "ERROR: Version not found in control!" && exit 1)
         echo "Changelog first line:"
         head -n 1 deb_build/debian/changelog
-        # Проверяем формат changelog
+        # Проверяем, что версия обновлена
         if ! head -n 1 deb_build/debian/changelog | grep -q "(${VERSION}-1)"; then
           echo "ERROR: Changelog version update failed!"
           exit 1
         fi
+        # Выводим весь changelog для проверки формата
+        echo "Full changelog for format verification:"
+        cat deb_build/debian/changelog
+        echo "---"
         
-    # Шаг 8: Собрать .deb пакет
+    # Шаг 8: Проверить формат debian файлов перед сборкой
+    - name: Validate debian files format
+      run: |
+        cd deb_build
+        echo "Validating changelog format..."
+        dpkg-parsechangelog || (echo "ERROR: Invalid changelog format!" && cat debian/changelog && exit 1)
+        echo "Validating control file..."
+        # Проверяем синтаксис control файла
+        if ! grep -q "^Package:" debian/control; then
+          echo "ERROR: Invalid control file - Package field not found!"
+          exit 1
+        fi
+        echo "All debian files are valid"
+        
+    # Шаг 9: Собрать .deb пакет
     - name: Build DEB package
       run: |
         cd deb_build
@@ -127,7 +144,7 @@ jobs:
         }
         echo "Build completed successfully!"
         
-    # Шаг 9: Найти собранный .deb файл
+    # Шаг 10: Найти собранный .deb файл
     - name: Find DEB package
       id: find_deb
       run: |
@@ -141,7 +158,7 @@ jobs:
         echo "deb_file=$DEB_FILE" >> $GITHUB_OUTPUT
         echo "Found DEB package: $DEB_FILE"
         
-    # Шаг 10: Прикрепить .deb пакет к релизу
+    # Шаг 11: Прикрепить .deb пакет к релизу
     - name: Upload DEB to release
       uses: softprops/action-gh-release@v1
       with:
