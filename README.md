@@ -8,7 +8,7 @@ xgamma GUI Tool provides a simple, minimalist interface for adjusting gamma corr
 
 ## Download
 
-Pre-built .deb packages are available in [Releases](https://github.com/pgorithm/xgamma_gui_tool/releases).
+Pre-built .deb packages are available in [Releases](https://github.com/pgorithm/xgamma-gui-tool/releases).
 
 ## Requirements
 
