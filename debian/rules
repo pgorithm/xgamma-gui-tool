@@ -15,14 +15,12 @@ override_dh_auto_install:
 	cp $(CURDIR)/requirements.txt $(CURDIR)/debian/xgamma-gui-tool/usr/share/xgamma-gui-tool/
 	
 	# Создаем исполняемый скрипт
-	cat > $(CURDIR)/debian/xgamma-gui-tool/usr/bin/xgamma-gui-tool << 'EOF'
-#!/usr/bin/env python3
-import sys
-sys.path.insert(0, "/usr/share/xgamma-gui-tool")
-from src.main import main
-if __name__ == "__main__":
-    main()
-EOF
+	echo '#!/usr/bin/env python3' > $(CURDIR)/debian/xgamma-gui-tool/usr/bin/xgamma-gui-tool
+	echo 'import sys' >> $(CURDIR)/debian/xgamma-gui-tool/usr/bin/xgamma-gui-tool
+	echo 'sys.path.insert(0, "/usr/share/xgamma-gui-tool")' >> $(CURDIR)/debian/xgamma-gui-tool/usr/bin/xgamma-gui-tool
+	echo 'from src.main import main' >> $(CURDIR)/debian/xgamma-gui-tool/usr/bin/xgamma-gui-tool
+	echo 'if __name__ == "__main__":' >> $(CURDIR)/debian/xgamma-gui-tool/usr/bin/xgamma-gui-tool
+	echo '    main()' >> $(CURDIR)/debian/xgamma-gui-tool/usr/bin/xgamma-gui-tool
 	chmod +x $(CURDIR)/debian/xgamma-gui-tool/usr/bin/xgamma-gui-tool
 	
 	# Копируем desktop файл

@@ -7,8 +7,7 @@ Thumbs.db
 *.swo
 
 # Documentation
-# docs/
-misc/
+docs/
 
 # Node.js
 node_modules/

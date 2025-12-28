@@ -77,20 +77,16 @@ jobs:
         [ -f deb_build/main.py ] || (echo "Error: main.py not found!" && exit 1)
         echo "All required files are present"
         
-    # Шаг 7: Обновить версию в control и changelog файлах
+    # Шаг 7: Обновить версию в changelog файле
     - name: Update version in package files
       run: |
         VERSION="${{ steps.get_version.outputs.version }}"
         echo "Updating version to: ${VERSION}"
-        # Обновляем версию в control (ищем строку Version: и заменяем)
-        sed -i "s/^Version:.*/Version: ${VERSION}/" deb_build/debian/control
         # Обновляем версию в changelog
         # Формат: xgamma-gui-tool (1.0.0-1) unstable; urgency=low
         # Заменяем только версию в скобках, сохраняя остальной формат
         sed -i "1s/([^)]*)/(${VERSION}-1)/" deb_build/debian/changelog
         # Проверяем результат
-        echo "Control file version:"
-        grep "^Version:" deb_build/debian/control || (echo "ERROR: Version not found in control!" && exit 1)
         echo "Changelog first line:"
         head -n 1 deb_build/debian/changelog
         # Проверяем, что версия обновлена
