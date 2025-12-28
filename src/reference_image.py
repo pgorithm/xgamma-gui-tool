@@ -134,12 +134,19 @@ class ReferenceImageGenerator:
         greenGamma = max(gammaValues.get('green', 1.0), 0.001)
         blueGamma = max(gammaValues.get('blue', 1.0), 0.001)
         
+        # Создаем lookup tables для каждого канала для ускорения обработки
+        # Это позволяет избежать повторных вычислений pow() для одинаковых значений
+        redLUT = [self._applyGammaChannel(i, redGamma) for i in range(256)]
+        greenLUT = [self._applyGammaChannel(i, greenGamma) for i in range(256)]
+        blueLUT = [self._applyGammaChannel(i, blueGamma) for i in range(256)]
+        
+        # Применяем гамма-коррекцию используя предвычисленные таблицы
         for y in range(image.height()):
             for x in range(image.width()):
                 color = QColor(image.pixel(x, y))
-                r = self._applyGammaChannel(color.red(), redGamma)
-                g = self._applyGammaChannel(color.green(), greenGamma)
-                b = self._applyGammaChannel(color.blue(), blueGamma)
+                r = redLUT[color.red()]
+                g = greenLUT[color.green()]
+                b = blueLUT[color.blue()]
                 image.setPixelColor(x, y, QColor(r, g, b))
 
     def _applyGammaChannel(self, value, gamma):

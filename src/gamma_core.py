@@ -11,9 +11,9 @@ import re
 class GammaCore:
     """Core class for managing gamma settings via xgamma command."""
     
-    DEFAULT_GAMMA = 1.0
-    MIN_GAMMA = 0.01
-    MAX_GAMMA = 5.0
+    DEFAULT_GAMMA = 1.000
+    MIN_GAMMA = 0.010
+    MAX_GAMMA = 5.000
     
     def __init__(self):
         """Initialize GammaCore and check xgamma availability."""

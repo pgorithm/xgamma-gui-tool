@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import (
     QSizePolicy, QApplication, QDialog,
     QDialogButtonBox
 )
-from PyQt5.QtCore import Qt, QEvent, QSize
+from PyQt5.QtCore import Qt, QEvent, QSize, QTimer
 from PyQt5.QtGui import (
     QPixmap, QFontMetrics, QPainter, QPen, QBrush,
     QColor, QIcon, QDoubleValidator
@@ -56,6 +56,17 @@ class GammaMainWindow(QMainWindow):
         self.widgetChannel = {}
         self.warningMessages = []
         self.currentGamma = {'red': 1.0, 'green': 1.0, 'blue': 1.0}
+        
+        # Таймер для отложенного обновления эталона
+        self.imageUpdateTimer = QTimer()
+        self.imageUpdateTimer.setSingleShot(True)
+        self.imageUpdateTimer.timeout.connect(self._updateReferenceImage)
+        
+        # Таймер для отложенного применения гаммы
+        self.gammaApplyTimer = QTimer()
+        self.gammaApplyTimer.setSingleShot(True)
+        self.gammaApplyTimer.timeout.connect(self._applyPendingGamma)
+        self.pendingGamma = None  # значения гаммы, которые ожидают применения
         
         self.setWindowTitle('xgamma GUI Tool')
         self.setMinimumSize(600, 650)
@@ -106,6 +117,11 @@ class GammaMainWindow(QMainWindow):
         fontMetrics = QFontMetrics(self.font())
         maxLabelWidth = max(fontMetrics.width(f'{label}:') for _, label in channels) + 10
         
+        # Вычисляем ширину поля ввода на основе MAX_GAMMA и количества разрядов
+        # Формат: "5.000" (текущее максимальное значение) = 5 символов
+        maxGammaStr = f'{GammaCore.MAX_GAMMA:.3f}'
+        inputFieldWidth = fontMetrics.width(maxGammaStr) + 20  # Добавляем отступы
+        
         for channel, label in channels:
             sliderLayout = QHBoxLayout()
             
@@ -130,8 +146,8 @@ class GammaMainWindow(QMainWindow):
             
             # Поле ввода значения
             valueInput = QLineEdit()
-            valueInput.setMinimumWidth(60)
-            valueInput.setMaximumWidth(60)
+            valueInput.setMinimumWidth(inputFieldWidth)
+            valueInput.setMaximumWidth(inputFieldWidth)
             valueInput.setText('1.000')
             valueInput.setAlignment(Qt.AlignCenter)
             # Ограничиваем ввод только числами с нужной точностью
@@ -143,7 +159,12 @@ class GammaMainWindow(QMainWindow):
             )
             validator.setNotation(QDoubleValidator.StandardNotation)
             valueInput.setValidator(validator)
+            # Обработка завершения редактирования (потеря фокуса или Enter)
             valueInput.editingFinished.connect(
+                lambda ch=channel: self._onValueInputChanged(ch)
+            )
+            # Обработка нажатия Enter для немедленного обновления
+            valueInput.returnPressed.connect(
                 lambda ch=channel: self._onValueInputChanged(ch)
             )
             self.widgetChannel[valueInput] = channel
@@ -190,6 +211,21 @@ class GammaMainWindow(QMainWindow):
             gammaValues = self.currentGamma
         pixmap = self.imageGenerator.generateImage(gammaValues)
         self.referenceLabel.setPixmap(pixmap)
+    
+    def _applyPendingGamma(self):
+        """Применяем накопленные значения гаммы."""
+        if self.pendingGamma is None:
+            return
+        
+        if 'overall' in self.pendingGamma:
+            self.gammaCore.applyGamma(overall=self.pendingGamma['overall'])
+        else:
+            self.gammaCore.applyGamma(
+                red=self.pendingGamma.get('red'),
+                green=self.pendingGamma.get('green'),
+                blue=self.pendingGamma.get('blue')
+            )
+        self.pendingGamma = None
     
     def _sliderValueToGamma(self, sliderValue):
         """
@@ -268,9 +304,11 @@ class GammaMainWindow(QMainWindow):
             self.valueInputs['blue'].setText(f'{gamma:.3f}')
             self.valueInputs['all'].setText(f'{gamma:.3f}')
             
-            # Применяем гамму
+            # Сохраняем значения гаммы для отложенного применения
             self.currentGamma = {'red': gamma, 'green': gamma, 'blue': gamma}
-            self.gammaCore.applyGamma(overall=gamma)
+            self.pendingGamma = {'overall': gamma}
+            self.gammaApplyTimer.stop()
+            self.gammaApplyTimer.start(50)  # Применяем через 50мс после последнего изменения
         else:
             # Обновляем конкретный канал
             self.valueInputs[channel].setText(f'{gamma:.3f}')
@@ -288,14 +326,20 @@ class GammaMainWindow(QMainWindow):
             self.sliders['all'].blockSignals(False)
             self.valueInputs['all'].setText(f'{avgGamma:.3f}')
             
-            # Применяем гамму
+            # Сохраняем значения гаммы для отложенного применения
             red = self._sliderValueToGamma(self.sliders['red'].value())
             green = self._sliderValueToGamma(self.sliders['green'].value())
             blue = self._sliderValueToGamma(self.sliders['blue'].value())
             self.currentGamma = {'red': red, 'green': green, 'blue': blue}
-            self.gammaCore.applyGamma(red=red, green=green, blue=blue)
+            self.pendingGamma = {'red': red, 'green': green, 'blue': blue}
+            self.gammaApplyTimer.stop()
+            self.gammaApplyTimer.start(50)  # Применяем через 50мс после последнего изменения
         
-        self._updateReferenceImage()
+        # Отложенное обновление изображения для улучшения производительности
+        # Обновление произойдет через 100мс после последнего изменения ползунка
+        self.imageUpdateTimer.stop()
+        self.imageUpdateTimer.start(100)
+        
         self.isUpdating = False
     
     def _buildIconButton(self, icon, tooltip, handler):
@@ -483,8 +527,10 @@ class GammaMainWindow(QMainWindow):
         for slider in self.sliders.values():
             slider.blockSignals(False)
         
-        # Применяем гамму по умолчанию
+        # Применяем гамму по умолчанию немедленно (без задержки)
         self.currentGamma = {'red': 1.0, 'green': 1.0, 'blue': 1.0}
+        self.gammaApplyTimer.stop()  # Отменяем отложенное применение
+        self.pendingGamma = None
         self.gammaCore.applyGamma(overall=1.0)
         
         # Удаляем из автозапуска
