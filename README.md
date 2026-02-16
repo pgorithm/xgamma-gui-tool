@@ -2,6 +2,10 @@
 
 Graphical tool for managing display gamma settings using the xgamma command on Linux systems.
 
+## Why you might need this tool?
+
+If your old and cheap monitor is displaying incorrect colors, you might need to adjust its gamma settings to fix them. This tool is for those who want to avoid making those adjustments through the terminal.
+
 ## Description
 
 xgamma GUI Tool provides a simple, minimalist interface for adjusting gamma correction for red, green, and blue channels individually or together. It allows you to preview changes in real-time and automatically apply saved settings on system startup.
@@ -12,7 +16,7 @@ Pre-built .deb packages are available in [Releases](https://github.com/pgorithm/
 
 ## Requirements
 
-- Linux Mint / Ubuntu (tested on Linux Mint 21.x)
+- Linux Mint / Ubuntu (tested on Linux Mint 22.2)
 - Python 3.8 or higher
 - xgamma (x11-xserver-utils package)
 - PyQt5
