@@ -94,7 +94,7 @@ class ReferenceImageGenerator:
             # Нижняя половина (динамическая)
             painter.drawImage(target_x, currentY + blockHeightHalf, 
                               dynamic_image, 
-                              source_x, block_y_in_source + blockHeightHalf, 
+                              source_x, block_y_in_source, 
                               blockWidth, blockHeightHalf)
 
         painter.end()
