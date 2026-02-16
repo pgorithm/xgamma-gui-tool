@@ -1,6 +1,9 @@
-"""
-Core module for gamma management using xgamma command.
-Handles xgamma availability check, command execution, and current values reading.
+"""Gamma Core Module.
+
+This module provides the core functionality for managing display gamma settings
+using the `xgamma` command-line utility. It handles checking for `xgamma`
+availability, executing gamma correction commands, and parsing current
+gamma values from the system.
 """
 
 import subprocess
@@ -59,7 +62,7 @@ class GammaCore:
                 timeout=5
             )
             
-            # Разбираем вывод наподобие: "-> Red  1.000, Green  1.000, Blue  1.000"
+            # Парсим вывод xgamma, чтобы извлечь текущие значения гаммы для каждого канала (например, "-> Red  1.000, Green  1.000, Blue  1.000").
             rawOutput = (result.stdout or '').strip() or (result.stderr or '').strip()
             self.lastRawOutput = rawOutput  # Сохраняем сырой вывод для дальнейшего анализа
             parsedGamma = self._parseGammaFromString(rawOutput)
@@ -102,14 +105,14 @@ class GammaCore:
         if not self.isXgammaAvailable():
             return False
         
-        # Формируем аргументы для команды
+        # Собираем аргументы для команды xgamma, чтобы применить коррекцию гаммы.
         args = [self.xgammaPath]
         
         if overall is not None:
-            # Применяем общее значение гаммы ко всем каналам
+            # Если указано общее значение гаммы, применяем его ко всем цветовым каналам для равномерной коррекции.
             args.extend(['-gamma', str(overall)])
         else:
-            # Применяем значения для отдельных каналов
+            # Если общее значение не указано, применяем индивидуальные значения гаммы для каждого запрошенного цветового канала.
             if red is not None:
                 args.extend(['-rgamma', str(red)])
             if green is not None:

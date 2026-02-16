@@ -1,6 +1,8 @@
-"""
-Module for generating reference test pattern image for gamma calibration.
-Creates an image with gradients and color blocks in RGB range.
+"""Reference Image Generation Module.
+
+This module provides functionality to generate a reference test pattern image
+for display gamma calibration. The generated image includes various gradients
+and color blocks to assist in visual gamma assessment.
 """
 
 from PyQt5.QtGui import QPixmap, QPainter, QColor, QImage
@@ -22,28 +24,31 @@ class ReferenceImageGenerator:
         self.height = height
     
     def generateImage(self, gammaValues=None):
-        """
-        Generate reference test pattern image with gradients and color blocks.
-        
-        Returns:
-            QPixmap: Generated reference image
-        """
+        """Generates a reference test pattern image with gradients and color blocks.
+
+    Args:
+        gammaValues (dict, optional): A dictionary containing 'red', 'green', and 'blue'
+            gamma values. If None, default values of 1.0 are used for all channels.
+
+    Returns:
+        QPixmap: The generated reference image, with gamma correction applied if specified.
+    """
         if gammaValues is None:
             gammaValues = {'red': 1.0, 'green': 1.0, 'blue': 1.0}
         
-        # Создаем QImage для отрисовки
+        # Инициализируем QImage для эффективной отрисовки графических примитивов и последующей работы с пикселями.
         image = QImage(self.width, self.height, QImage.Format_RGB32)
         painter = QPainter(image)
         painter.setRenderHint(QPainter.Antialiasing)
         
-        # Заполняем фон нейтральным серым
+        # Заполняем фон нейтральным серым цветом, чтобы обеспечить однородную основу для тестового паттерна.
         painter.fillRect(0, 0, self.width, self.height, QColor(128, 128, 128))
         
-        # Рисуем горизонтальные градиентные полосы для каждого канала
+        # Рисуем горизонтальные градиентные полосы для каждого цветового канала, чтобы визуально оценить их отклик на гамма-коррекцию.
         barHeight = self.height // 4
         margin = 10
         
-        # Градиент для красного канала
+        # Градиент для красного канала, чтобы проверить линейность его отображения.
         self._drawGradientBar(
             painter,
             0, margin,
@@ -53,7 +58,7 @@ class ReferenceImageGenerator:
             Qt.Horizontal
         )
         
-        # Градиент для зеленого канала
+        # Градиент для зеленого канала, чтобы проверить линейность его отображения.
         self._drawGradientBar(
             painter,
             0, barHeight + margin,
@@ -63,7 +68,7 @@ class ReferenceImageGenerator:
             Qt.Horizontal
         )
         
-        # Градиент для синего канала
+        # Градиент для синего канала, чтобы проверить линейность его отображения.
         self._drawGradientBar(
             painter,
             0, barHeight * 2 + margin,
@@ -73,21 +78,21 @@ class ReferenceImageGenerator:
             Qt.Horizontal
         )
         
-        # Блок цветовых образцов внизу
+        # Добавляем блок цветовых образцов в нижней части изображения для быстрой оценки смешивания цветов и насыщенности.
         blockY = barHeight * 3
         blockHeight = barHeight - margin * 2
         blockWidth = self.width // 8
         
-        # Отрисовываем блоки: красный, зеленый, синий, желтый, циан, магента (маджента?), белый, черный
+        # Отрисовываем фиксированные цветовые блоки для каждого основного и смешанного цвета, чтобы оценить их точное отображение после гамма-коррекции.
         colors = [
-            QColor(255, 0, 0),      # Красный
-            QColor(0, 255, 0),      # Зеленый
-            QColor(0, 0, 255),      # Синий
-            QColor(255, 255, 0),    # Желтый
-            QColor(0, 255, 255),    # Циан
-            QColor(255, 0, 255),    # Маджента
-            QColor(255, 255, 255),  # Белый
-            QColor(0, 0, 0)         # Черный
+            QColor(255, 0, 0),      # Красный компонент для проверки отдельных каналов.
+            QColor(0, 255, 0),      # Зеленый компонент для проверки отдельных каналов.
+            QColor(0, 0, 255),      # Синий компонент для проверки отдельных каналов.
+            QColor(255, 255, 0),    # Желтый (красный + зеленый) для проверки смешивания.
+            QColor(0, 255, 255),    # Циан (зеленый + синий) для проверки смешивания.
+            QColor(255, 0, 255),    # Маджента (красный + синий) для проверки смешивания.
+            QColor(255, 255, 255),  # Белый (все компоненты максимальны) для проверки максимальной яркости.
+            QColor(0, 0, 0)         # Черный (все компоненты минимальны) для проверки минимальной яркости.
         ]
         
         for i, color in enumerate(colors):
@@ -100,10 +105,10 @@ class ReferenceImageGenerator:
         
         painter.end()
         
-        # Применяем гамма-коррекцию к готовому паттерну
+        # Применяем гамма-коррекцию к сгенерированному изображению, чтобы отразить текущие настройки системы или запрошенные значения.
         self._applyGammaToImage(image, gammaValues)
         
-        # Конвертируем в QPixmap
+        # Конвертируем QImage в QPixmap для оптимизации отображения в GUI-элементах.
         return QPixmap.fromImage(image)
     
     def _drawGradientBar(self, painter, x, y, width, height, startColor, endColor, orientation):
@@ -129,7 +134,12 @@ class ReferenceImageGenerator:
         painter.fillRect(x, y, width, height, gradient)
 
     def _applyGammaToImage(self, image, gammaValues):
-        """Корректируем изображение согласно текущей гамме."""
+        """Applies gamma correction to the image based on provided gamma values.
+
+    Args:
+        image (QImage): The QImage object to which gamma correction will be applied.
+        gammaValues (dict): A dictionary containing 'red', 'green', and 'blue' gamma values.
+    """
         redGamma = max(gammaValues.get('red', 1.0), 0.001)
         greenGamma = max(gammaValues.get('green', 1.0), 0.001)
         blueGamma = max(gammaValues.get('blue', 1.0), 0.001)
@@ -140,7 +150,7 @@ class ReferenceImageGenerator:
         greenLUT = [self._applyGammaChannel(i, greenGamma) for i in range(256)]
         blueLUT = [self._applyGammaChannel(i, blueGamma) for i in range(256)]
         
-        # Применяем гамма-коррекцию используя предвычисленные таблицы
+        # Применяем гамма-коррекцию к каждому пикселю, используя предварительно вычисленные таблицы для повышения производительности.
         for y in range(image.height()):
             for x in range(image.width()):
                 color = QColor(image.pixel(x, y))
@@ -150,7 +160,18 @@ class ReferenceImageGenerator:
                 image.setPixelColor(x, y, QColor(r, g, b))
 
     def _applyGammaChannel(self, value, gamma):
-        """Применяем гамму к конкретному каналу."""
+        """Applies gamma correction to a single color channel value.
+
+    This helper function normalizes the input value (0-255) to a 0.0-1.0 range,
+    applies the gamma power function, and then scales it back to 0-255.
+
+    Args:
+        value (int): The original 8-bit color channel value (0-255).
+        gamma (float): The gamma value to apply.
+
+    Returns:
+        int: The gamma-corrected 8-bit color channel value (0-255).
+    """
         normalized = (value / 255.0) or 0.0
         adjusted = pow(normalized, 1.0 / gamma) if normalized > 0 else 0.0
         return int(max(0, min(255, round(adjusted * 255))))

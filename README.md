@@ -98,10 +98,10 @@ python3 main.py
 
 ### Gamma Range
 
-- Minimum: 0.01
-- Maximum: 5.0
-- Step: 0.01
-- Default: 1.0 for all channels
+- Minimum: 0.010
+- Maximum: 5.000
+- Step: 0.001
+- Default: 1.000 for all channels
 
 ## Project Structure
 
