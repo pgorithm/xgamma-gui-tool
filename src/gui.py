@@ -232,7 +232,8 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle('Settings')
         self.setModal(True)
-        self.setMinimumSize(400, 300)
+        # Минимальный размер окна настроек
+        self.setMinimumSize(150, 150)
         
         mainLayout = QVBoxLayout(self)
         mainLayout.setSpacing(15)
