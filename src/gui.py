@@ -357,13 +357,15 @@ class GammaMainWindow(QMainWindow):
         
         self.isUpdating = False
 
-    def _updateReferenceImage(self, gammaValues):
+    def _updateReferenceImage(self, gammaValues=None):
         """Updates the reference image display with the current gamma values.
 
     Args:
-        gammaValues (dict): A dictionary containing 'red', 'green', and 'blue'
-            gamma values.
+        gammaValues (dict, optional): A dictionary containing 'red', 'green', and 'blue'
+            gamma values. If None, self.currentGamma is used.
     """
+        if gammaValues is None:
+            gammaValues = self.currentGamma
         pixmap = self.imageGenerator.generateImage(gammaValues)
         self.referenceLabel.setPixmap(pixmap)
 
@@ -634,7 +636,7 @@ class GammaMainWindow(QMainWindow):
         else:
             self.statusBar.showMessage('Reset to defaults', 3000)
         
-        self._updateReferenceImage()
+        self._updateReferenceImage(self.currentGamma)
         self.isUpdating = False
 
     def _onSaveClicked(self):
@@ -657,7 +659,7 @@ class GammaMainWindow(QMainWindow):
         else:
             self.statusBar.showMessage('Error: Failed to apply and save to autostart', 3000)
 
-        self._updateReferenceImage()
+        self._updateReferenceImage(self.currentGamma)
         self.isUpdating = False
 
     def eventFilter(self, obj, event):
