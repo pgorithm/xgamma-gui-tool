@@ -61,26 +61,31 @@ class ReferenceImageGenerator:
         return image
 
     def _composeFinalImage(self, static_image, dynamic_image):
-        """
-        Compose final image with static and dynamic parts side by side.
-        """
-        # Рассчитываем итоговую высоту, которая соответствует высоте одного набора изображений,
-        # так как они теперь будут располагаться рядом, а не друг под другом.
-        final_height = static_image.height()
-        final_image = QImage(self.width, final_height, QImage.Format_ARGB32)
+        final_image = QImage(self.width, self.calculatedHeight, QImage.Format_ARGB32)
         final_image.fill(Qt.transparent)
-        
         painter = QPainter(final_image)
+
+        currentY = 0
+        single_bar_region_height = self.barHeight + self.barMargin
+
+        for i in range(self.numGradientBars):
+            # Статическая полоса
+            painter.drawImage(0, currentY, static_image, 0, i * single_bar_region_height, self.width, self.barHeight)
+            currentY += self.barHeight
+            # Динамическая полоса
+            painter.drawImage(0, currentY, dynamic_image, 0, i * single_bar_region_height, self.width, self.barHeight)
+            currentY += self.barHeight + self.barMargin
+
+        currentY += self.barMargin
+        block_y_in_source = self.barHeight * self.numGradientBars + self.barMargin * (self.numGradientBars + 1)
+        blockWidth = self.width // self.numColorBlocks
         
-        # Разделяем холст на две половины по вертикали.
-        half_width = self.width // 2
-        
-        # В одну половину помещаем статическое изображение, которое не будет меняться.
-        painter.drawImage(0, 0, static_image, 0, 0, half_width, final_height, Qt.AutoColor)
-        
-        # В другую половину помещаем динамическое изображение, которое будет обновляться при изменении гаммы.
-        painter.drawImage(half_width, 0, dynamic_image, 0, 0, half_width, final_height, Qt.AutoColor)
-        
+        for i in range(self.numColorBlocks):
+            # Статический блок
+            painter.drawImage(i * blockWidth, currentY, static_image, i * blockWidth, block_y_in_source, blockWidth // 2, self.blockHeight)
+            # Динамический блок
+            painter.drawImage(i * blockWidth + blockWidth // 2, currentY, dynamic_image, i * blockWidth, block_y_in_source, blockWidth // 2, self.blockHeight)
+
         painter.end()
         return QPixmap.fromImage(final_image)
 
