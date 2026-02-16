@@ -22,6 +22,112 @@ from PyQt5.QtGui import (
 from .gamma_core import GammaCore
 from .reference_image import ReferenceImageGenerator
 from .config_manager import ConfigManager
+from PyQt5.QtCore import QThread, pyqtSignal
+
+
+class InitializationWorker(QThread):
+    """
+    Worker thread for performing initial blocking operations (gamma detection,
+    environment checks) without freezing the GUI.
+    """
+    finished = pyqtSignal(dict)
+
+    def __init__(self, gammaCore, parent=None):
+        super().__init__(parent)
+        self.gammaCore = gammaCore
+
+    def run(self):
+        """
+        Perform blocking gamma detection and environment checks.
+        Emit results via the 'finished' signal.
+        """
+        currentGamma = self.gammaCore.getCurrentGamma()
+
+        # Temporarily create a dummy MainWindow instance to call private methods
+        # for environment warnings without instantiating the full GUI.
+        # This is a workaround as these methods are currently coupled to MainWindow.
+        # In a more extensive refactor, these checks would be moved to GammaCore.
+        class DummyMainWindow:
+            def __init__(self, gamma_core_instance):
+                self.gammaCore = gamma_core_instance
+                self._is_vm_cached = None
+                self._is_hdr_cached = None
+
+            def _readSystemHint(self, path):
+                try:
+                    with open(path, 'r', encoding='utf-8', errors='ignore') as file:
+                        return file.readline().strip()
+                except (FileNotFoundError, PermissionError, OSError):
+                    return ''
+
+            def _isVirtualMachine(self):
+                if self._is_vm_cached is not None:
+                    return self._is_vm_cached
+                
+                keywords = ['virtualbox', 'vmware', 'kvm', 'qemu', 'hyper-v', 'parallels']
+                hints = [
+                    self._readSystemHint('/sys/class/dmi/id/product_name'),
+                    self._readSystemHint('/sys/class/dmi/id/sys_vendor')
+                ]
+                for hint in hints:
+                    lowered = hint.lower()
+                    if lowered and any(word in lowered for word in keywords):
+                        self._is_vm_cached = True
+                        return True
+                try:
+                    result = subprocess.run(
+                        ['systemd-detect-virt'],
+                        capture_output=True,
+                        text=True,
+                        timeout=2
+                    )
+                    vm_result = result.returncode == 0 and result.stdout.strip() not in ('none', '')
+                    self._is_vm_cached = vm_result
+                    return vm_result
+                except (FileNotFoundError, subprocess.TimeoutExpired, PermissionError):
+                    self._is_vm_cached = False
+                    return False
+
+            def _isHdrPipelineActive(self):
+                if self._is_hdr_cached is not None:
+                    return self._is_hdr_cached
+                
+                try:
+                    result = subprocess.run(
+                        ['xrandr', '--verbose'],
+                        capture_output=True,
+                        text=True,
+                        timeout=3
+                    )
+                except (FileNotFoundError, subprocess.TimeoutExpired, PermissionError):
+                    self._is_hdr_cached = False
+                    return False
+                text = result.stdout.lower()
+                hdrTokens = ['hdr', '10 bpc', '10-bit', 'deep color']
+                hdr_result = any(token in text for token in hdrTokens)
+                self._is_hdr_cached = hdr_result
+                return hdr_result
+
+            def _collectEnvironmentWarnings(self):
+                messages = []
+                if self._isVirtualMachine():
+                    messages.append('VM environment may limit gamma adjustment.')
+                if self._isHdrPipelineActive():
+                    messages.append('HDR or 10-bit mode may disable manual gamma adjustment.')
+                return messages
+
+        dummy_main_window = DummyMainWindow(self.gammaCore)
+        warningMessages = dummy_main_window._collectEnvironmentWarnings()
+
+        self.finished.emit({
+            'gamma': currentGamma,
+            'warnings': warningMessages,
+            'raw_output': self.gammaCore.getLastRawOutput()
+        })
+
+
+class SettingsDialog(QDialog):
+    """Minimal modal settings placeholder."""
 
 
 class SettingsDialog(QDialog):
@@ -199,27 +305,68 @@ class GammaMainWindow(QMainWindow):
         self.setStatusBar(self.statusBar)
         self.statusBar.showMessage('Ready')
         
-        # Загружаем текущие значения гаммы из системы при запуске, чтобы отобразить актуальные настройки пользователя.
-        self._loadCurrentGamma()
-        self._collectEnvironmentWarnings()
-        self._emitStartupStatusEvent()
-        
+        self.statusBar.showMessage('Loading initial settings...')
+
+        self.worker = InitializationWorker(self.gammaCore)
+        self.worker.finished.connect(self._onInitializationComplete)
+        self.worker.start()
+
         app = QApplication.instance()
         if app:
             app.installEventFilter(self)
-    
-    def _updateReferenceImage(self, gammaValues=None):
+
+    def _onInitializationComplete(self, results):
+        """
+        Slot to receive results from InitializationWorker and update the GUI.
+        """
+        current = results['gamma']
+        self.warningMessages = results['warnings']
+        rawOutput = results['raw_output']
+
+        self.isUpdating = True
+
+        for slider in self.sliders.values():
+            slider.blockSignals(True)
+
+        self.sliders['red'].setValue(self._gammaToSliderValue(current['red']))
+        self.sliders['green'].setValue(self._gammaToSliderValue(current['green']))
+        self.sliders['blue'].setValue(self._gammaToSliderValue(current['blue']))
+
+        self.valueInputs['red'].setText(f"{current['red']:.3f}")
+        self.valueInputs['green'].setText(f"{current['green']:.3f}")
+        self.valueInputs['blue'].setText(f"{current['blue']:.3f}")
+
+        avgGamma = (current['red'] + current['green'] + current['blue']) / 3.0
+        self.sliders['all'].setValue(self._gammaToSliderValue(avgGamma))
+        self.valueInputs['all'].setText(f'{avgGamma:.3f}')
+        self.currentGamma = {
+            'red': current['red'],
+            'green': current['green'],
+            'blue': current['blue']
+        }
+        self._updateReferenceImage(self.currentGamma)
+
+        for slider in self.sliders.values():
+            slider.blockSignals(False)
+
+        self._updateWarningIndicator()
+        if rawOutput:
+            self.statusBar.showMessage(rawOutput, 3000)
+        else:
+            self.statusBar.showMessage('Ready', 3000)
+        
+        self.isUpdating = False
+
+    def _updateReferenceImage(self, gammaValues):
         """Updates the reference image display with the current gamma values.
 
     Args:
-        gammaValues (dict, optional): A dictionary containing 'red', 'green', and 'blue'
-            gamma values. If None, the current gamma values from `self.currentGamma` are used.
+        gammaValues (dict): A dictionary containing 'red', 'green', and 'blue'
+            gamma values.
     """
-        if gammaValues is None:
-            gammaValues = self.currentGamma
         pixmap = self.imageGenerator.generateImage(gammaValues)
         self.referenceLabel.setPixmap(pixmap)
-    
+
     def _applyPendingGamma(self):
         """Applies the accumulated pending gamma values to the system.
 
@@ -407,24 +554,6 @@ class GammaMainWindow(QMainWindow):
         dialog = SettingsDialog(self)
         dialog.exec_()
     
-    def _collectEnvironmentWarnings(self):
-        """Gather warning messages and update indicator."""
-        messages = []
-        if self._isVirtualMachine():
-            messages.append('VM environment may limit gamma adjustment.')
-        if self._isHdrPipelineActive():
-            messages.append('HDR or 10-bit mode may disable manual gamma adjustment.')
-        self.warningMessages = messages
-        self._updateWarningIndicator()
-
-    def _emitStartupStatusEvent(self):
-        """Send raw xgamma output to status bar for debugging."""
-        rawOutput = self.gammaCore.getLastRawOutput()
-        if rawOutput:
-            self.statusBar.showMessage(rawOutput)
-        else:
-            self.statusBar.showMessage('No xgamma output captured')
-    
     def _updateWarningIndicator(self):
         """Show or hide warning icon with tooltip."""
         hasWarnings = bool(self.warningMessages)
@@ -435,52 +564,7 @@ class GammaMainWindow(QMainWindow):
             self.warningIconLabel.setToolTip(tooltip)
         else:
             self.warningIconLabel.setToolTip('')
-    
-    def _readSystemHint(self, path):
-        """Read single line helper."""
-        try:
-            with open(path, 'r', encoding='utf-8', errors='ignore') as file:
-                return file.readline().strip()
-        except (FileNotFoundError, PermissionError, OSError):
-            return ''
-    
-    def _isVirtualMachine(self):
-        """Best-effort VM detection."""
-        keywords = ['virtualbox', 'vmware', 'kvm', 'qemu', 'hyper-v', 'parallels']
-        hints = [
-            self._readSystemHint('/sys/class/dmi/id/product_name'),
-            self._readSystemHint('/sys/class/dmi/id/sys_vendor')
-        ]
-        for hint in hints:
-            lowered = hint.lower()
-            if lowered and any(word in lowered for word in keywords):
-                return True
-        try:
-            result = subprocess.run(
-                ['systemd-detect-virt'],
-                capture_output=True,
-                text=True,
-                timeout=2
-            )
-            return result.returncode == 0 and result.stdout.strip() not in ('none', '')
-        except (FileNotFoundError, subprocess.TimeoutExpired, PermissionError):
-            return False
-    
-    def _isHdrPipelineActive(self):
-        """Detect HDR or 10-bit modes via xrandr output."""
-        try:
-            result = subprocess.run(
-                ['xrandr', '--verbose'],
-                capture_output=True,
-                text=True,
-                timeout=3
-            )
-        except (FileNotFoundError, subprocess.TimeoutExpired, PermissionError):
-            return False
-        text = result.stdout.lower()
-        hdrTokens = ['hdr', '10 bpc', '10-bit', 'deep color']
-        return any(token in text for token in hdrTokens)
-    
+
     def _onValueInputChanged(self, channel):
         """
         Handle value input field change.
@@ -520,7 +604,7 @@ class GammaMainWindow(QMainWindow):
             else:
                 gamma = self._sliderValueToGamma(self.sliders[channel].value())
                 self.valueInputs[channel].setText(f'{gamma:.3f}')
-    
+
     def _onResetClicked(self):
         """Handle reset button click."""
         self.isUpdating = True
@@ -552,7 +636,7 @@ class GammaMainWindow(QMainWindow):
         
         self._updateReferenceImage()
         self.isUpdating = False
-    
+
     def _onSaveClicked(self):
         """Handle save button click."""
         # Получаем текущие значения гаммы из ползунков, чтобы сформировать команду xgamma для сохранения в автозапуск.
@@ -572,43 +656,10 @@ class GammaMainWindow(QMainWindow):
             self.statusBar.showMessage('Settings applied and saved to autostart', 3000)
         else:
             self.statusBar.showMessage('Error: Failed to apply and save to autostart', 3000)
-    
-    def _loadCurrentGamma(self):
-        """Load current gamma values from system."""
-        current = self.gammaCore.getCurrentGamma()
-        
-        self.isUpdating = True
-        
-        # Блокируем сигналы от ползунков, чтобы избежать нежелательных обновлений GUI в процессе инициализации и загрузки настроек.
-        for slider in self.sliders.values():
-            slider.blockSignals(True)
-        
-        # Устанавливаем значения ползунков и полей ввода, соответствующие текущим системным настройкам гаммы.
-        self.sliders['red'].setValue(self._gammaToSliderValue(current['red']))
-        self.sliders['green'].setValue(self._gammaToSliderValue(current['green']))
-        self.sliders['blue'].setValue(self._gammaToSliderValue(current['blue']))
-        
-        self.valueInputs['red'].setText(f"{current['red']:.3f}")
-        self.valueInputs['green'].setText(f"{current['green']:.3f}")
-        self.valueInputs['blue'].setText(f"{current['blue']:.3f}")
-        
-        # Вычисляем и устанавливаем значение для ползунка "all", чтобы оно отражало среднее арифметическое текущих значений RGB.
-        avgGamma = (current['red'] + current['green'] + current['blue']) / 3.0
-        self.sliders['all'].setValue(self._gammaToSliderValue(avgGamma))
-        self.valueInputs['all'].setText(f'{avgGamma:.3f}')
-        self.currentGamma = {
-            'red': current['red'],
-            'green': current['green'],
-            'blue': current['blue']
-        }
-        self._updateReferenceImage(self.currentGamma)
-        
-        # Снимаем блокировку сигналов
-        for slider in self.sliders.values():
-            slider.blockSignals(False)
-        
+
+        self._updateReferenceImage()
         self.isUpdating = False
-    
+
     def eventFilter(self, obj, event):
         """Handle global mouse and keyboard events for slider control."""
         if event.type() == QEvent.MouseButtonPress:
