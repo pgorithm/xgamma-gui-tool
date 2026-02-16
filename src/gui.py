@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSlider, QLabel, QPushButton, QLineEdit, QStatusBar,
     QSizePolicy, QApplication, QDialog,
-    QDialogButtonBox
+    QDialogButtonBox, QCheckBox, QRectF
 )
 from PyQt5.QtCore import Qt, QEvent, QSize, QTimer
 from PyQt5.QtGui import (
@@ -126,24 +126,132 @@ class InitializationWorker(QThread):
         })
 
 
-class SettingsDialog(QDialog):
-    """Minimal modal settings placeholder."""
+class SettingsButton(QWidget):
+    """Кнопка с иконкой и текстом."""
+    def __init__(self, icon, text, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.iconLabel = QLabel()
+        if icon:
+            self.iconLabel.setPixmap(icon.pixmap(22, 22))
+        self.label = QLabel(text)
+        
+        layout.addWidget(self.iconLabel)
+        layout.addWidget(self.label)
+        layout.addStretch()
 
+class SettingsBoolean(QWidget):
+    """Галочка с подписью."""
+    def __init__(self, text, checked=False, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.checkbox = QCheckBox(text)
+        self.checkbox.setChecked(checked)
+        layout.addWidget(self.checkbox)
+
+class SettingsTextbox(QWidget):
+    """Подпись и поле для ввода текста."""
+    def __init__(self, text, value="", parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.label = QLabel(text)
+        self.textbox = QLineEdit(value)
+        layout.addWidget(self.label)
+        layout.addWidget(self.textbox)
+
+class SettingsBooleanTextbox(QWidget):
+    """Комбинация галочки, подписи и поля для ввода."""
+    def __init__(self, checkbox_text, checked=False, textbox_value="", parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.checkbox = QCheckBox(checkbox_text)
+        self.checkbox.setChecked(checked)
+        self.textbox = QLineEdit(textbox_value)
+        self.textbox.setEnabled(checked)
+        self.checkbox.toggled.connect(self.textbox.setEnabled)
+        
+        layout.addWidget(self.checkbox)
+        layout.addStretch()
+        layout.addWidget(self.textbox)
+
+class SettingsSlider(QWidget):
+    """Слайдер с подписью и полем для значения."""
+    def __init__(self, text, value=0, min_val=0, max_val=100, parent=None):
+        super().__init__(parent)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        
+        top_layout = QHBoxLayout()
+        self.label = QLabel(text)
+        self.value_label = QLabel(str(value))
+        top_layout.addWidget(self.label)
+        top_layout.addStretch()
+        top_layout.addWidget(self.value_label)
+        
+        self.slider = QSlider(Qt.Horizontal)
+        self.slider.setRange(min_val, max_val)
+        self.slider.setValue(value)
+        self.slider.valueChanged.connect(lambda v: self.value_label.setText(str(v)))
+        
+        main_layout.addLayout(top_layout)
+        main_layout.addWidget(self.slider)
+
+def _create_info_icon():
+    """Создает иконку 'i' в синем круге."""
+    size = 24
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    
+    # Синий круг
+    painter.setBrush(QBrush(QColor('#0078d4')))
+    painter.setPen(Qt.NoPen)
+    painter.drawEllipse(0, 0, size, size)
+    
+    # Буква 'i'
+    painter.setPen(QPen(Qt.white, 2))
+    font = painter.font()
+    font.setBold(True)
+    font.setPixelSize(16)
+    painter.setFont(font)
+    painter.drawText(QRectF(0, 0, size, size), Qt.AlignCenter, 'i')
+    
+    painter.end()
+    return QIcon(pixmap)
 
 class SettingsDialog(QDialog):
-    """Minimal modal settings placeholder."""
+    """Модальное окно настроек."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle('Settings')
         self.setModal(True)
-        layout = QVBoxLayout(self)
-        infoLabel = QLabel('WIP, sorry')
-        infoLabel.setWordWrap(True)
-        layout.addWidget(infoLabel)
+        self.setMinimumSize(400, 300)
+        
+        mainLayout = QVBoxLayout(self)
+        mainLayout.setSpacing(15)
+
+        about_button = SettingsButton(
+            icon=_create_info_icon(),
+            text="About"
+        )
+        about_button.setToolTip(
+            "Version: dev\n"
+            "Author: pgorithm\n"
+            "GitHub: https://github.com/pgorithm/xgamma_gui_tool\n"
+            "hello, world!"
+        )
+        mainLayout.addWidget(about_button)
+
         buttonBox = QDialogButtonBox(QDialogButtonBox.Close)
         buttonBox.rejected.connect(self.reject)
-        layout.addWidget(buttonBox)
+        mainLayout.addWidget(buttonBox)
 
 
 class GammaMainWindow(QMainWindow):
@@ -160,23 +268,32 @@ class GammaMainWindow(QMainWindow):
         super().__init__()
         self.gammaCore = gammaCore
         self.configManager = configManager
-        self.isUpdating = False  # Флаг `isUpdating` используется для предотвращения циклических обновлений, когда изменения одного виджета (например, ползунка) вызывают нежелательные обновления других связанных виджетов.
-        self.activeChannel = None  # `activeChannel` отслеживает, какой ползунок активно управляется с клавиатуры, что позволяет направленно изменять значения гаммы.
+        self.isUpdating = False 
+        # Флаг `isUpdating` используется для предотвращения циклических обновлений, когда изменения одного виджета
+        # (например, ползунка) вызывают нежелательные обновления других связанных виджетов.
+        self.activeChannel = None 
+        # `activeChannel` отслеживает, какой ползунок активно управляется с клавиатуры, 
+        # что позволяет направленно изменять значения гаммы.
         self.widgetChannel = {}
         self.warningMessages = []
         self.currentGamma = {'red': 1.0, 'green': 1.0, 'blue': 1.0}
         
-        # Таймер `imageUpdateTimer` используется для отложенного обновления эталонного изображения, чтобы избежать частых перерисовок и улучшить производительность GUI при быстрых изменениях гаммы.
         self.imageUpdateTimer = QTimer()
         self.imageUpdateTimer.setSingleShot(True)
         self.imageUpdateTimer.timeout.connect(self._updateReferenceImage)
+        # Таймер `imageUpdateTimer` используется для отложенного обновления эталонного изображения,
+        # чтобы избежать частых перерисовок и улучшить производительность GUI при быстрых изменениях гаммы.
         
-        # Таймер `gammaApplyTimer` используется для отложенного применения гаммы к системе, чтобы предотвратить избыточные вызовы xgamma при каждом движении ползунка и уменьшить нагрузку на систему.
+    
         self.gammaApplyTimer = QTimer()
         self.gammaApplyTimer.setSingleShot(True)
         self.gammaApplyTimer.timeout.connect(self._applyPendingGamma)
-        self.pendingGamma = None  # `pendingGamma` хранит значения гаммы, которые ожидают применения таймером, позволяя накапливать изменения перед их фактическим использованием.
-        
+        # Таймер `gammaApplyTimer` используется для отложенного применения гаммы к системе,
+        # чтобы предотвратить избыточные вызовы xgamma при каждом движении ползунка и уменьшить нагрузку на систему.
+        self.pendingGamma = None
+        # `pendingGamma` хранит значения гаммы, которые ожидают применения таймером,
+        # позволяя накапливать изменения перед их фактическим использованием.
+          
         self.setWindowTitle('xgamma GUI Tool')
         self.setMinimumSize(600, 650)
         
@@ -226,7 +343,8 @@ class GammaMainWindow(QMainWindow):
         fontMetrics = QFontMetrics(self.font())
         maxLabelWidth = max(fontMetrics.width(f'{label}:') for _, label in channels) + 10
         
-        # Вычисляем оптимальную ширину поля ввода на основе максимального значения гаммы, чтобы обеспечить адекватное отображение всех возможных значений.
+        # Вычисляем оптимальную ширину поля ввода на основе максимального значения гаммы,
+        # чтобы обеспечить адекватное отображение всех возможных значений.
         # Формат: "5.000" (текущее максимальное значение) = 5 символов
         maxGammaStr = f'{GammaCore.MAX_GAMMA:.3f}'
         inputFieldWidth = fontMetrics.width(maxGammaStr) + 20  # Добавляем отступы
@@ -300,7 +418,8 @@ class GammaMainWindow(QMainWindow):
         
         mainLayout.addLayout(buttonLayout)
         
-        # Инициализируем строку состояния для отображения информации о текущем статусе приложения и возможных предупреждениях.
+        # Инициализируем строку состояния для отображения информации о текущем статусе приложения
+        # и возможных предупреждениях.
         self.statusBar = QStatusBar()
         self.setStatusBar(self.statusBar)
         self.statusBar.showMessage('Ready')
