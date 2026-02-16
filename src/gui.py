@@ -12,9 +12,9 @@ from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSlider, QLabel, QPushButton, QLineEdit, QStatusBar,
     QSizePolicy, QApplication, QDialog,
-    QDialogButtonBox, QCheckBox, QRectF
+    QDialogButtonBox, QCheckBox
 )
-from PyQt5.QtCore import Qt, QEvent, QSize, QTimer
+from PyQt5.QtCore import Qt, QEvent, QSize, QTimer, QRectF
 from PyQt5.QtGui import (
     QPixmap, QFontMetrics, QPainter, QPen, QBrush,
     QColor, QIcon, QDoubleValidator
