@@ -55,7 +55,7 @@ class ReferenceImageGenerator:
             QColor(255, 255, 255), QColor(0, 0, 0)
         ]
         for i, color in enumerate(block_colors):
-            painter.fillRect(i * blockWidth + self.blockMargin, currentY, blockWidth - self.blockMargin * 2, self.blockHeight, color)
+            painter.fillRect(i * blockWidth, currentY, blockWidth, self.blockHeight, color)
             
         painter.end()
         return image
@@ -79,12 +79,23 @@ class ReferenceImageGenerator:
         currentY += self.barMargin
         block_y_in_source = self.barHeight * self.numGradientBars + self.barMargin * (self.numGradientBars + 1)
         blockWidth = self.width // self.numColorBlocks
+        blockHeightHalf = self.blockHeight // 2
         
         for i in range(self.numColorBlocks):
-            # Статический блок
-            painter.drawImage(i * blockWidth, currentY, static_image, i * blockWidth, block_y_in_source, blockWidth // 2, self.blockHeight)
-            # Динамический блок
-            painter.drawImage(i * blockWidth + blockWidth // 2, currentY, dynamic_image, i * blockWidth, block_y_in_source, blockWidth // 2, self.blockHeight)
+            source_x = i * blockWidth
+            target_x = i * blockWidth
+
+            # Верхняя половина (статическая)
+            painter.drawImage(target_x, currentY, 
+                              static_image, 
+                              source_x, block_y_in_source, 
+                              blockWidth, blockHeightHalf)
+
+            # Нижняя половина (динамическая)
+            painter.drawImage(target_x, currentY + blockHeightHalf, 
+                              dynamic_image, 
+                              source_x, block_y_in_source + blockHeightHalf, 
+                              blockWidth, blockHeightHalf)
 
         painter.end()
         return QPixmap.fromImage(final_image)

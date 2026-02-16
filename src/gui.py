@@ -325,7 +325,7 @@ class GammaMainWindow(QMainWindow):
         self.imageGenerator = ReferenceImageGenerator(600)
         self.referenceLabel = QLabel()
         self.referenceLabel.setAlignment(Qt.AlignCenter)
-        self.referenceLabel.setMinimumHeight(self.imageGenerator.calculatedHeight)
+        self.referenceLabel.setMinimumHeight(self.imageGenerator.calculatedHeight - 10)
         self.referenceLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.referenceLabel.setScaledContents(True)
         self._updateReferenceImage(self.currentGamma)
