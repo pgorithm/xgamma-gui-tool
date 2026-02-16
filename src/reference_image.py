@@ -1,177 +1,129 @@
-"""Reference Image Generation Module.
-
-This module provides functionality to generate a reference test pattern image
-for display gamma calibration. The generated image includes various gradients
-and color blocks to assist in visual gamma assessment.
-"""
-
-from PyQt5.QtGui import QPixmap, QPainter, QColor, QImage
+import math
+from PyQt5.QtGui import QPixmap, QPainter, QColor, QImage, QLinearGradient
 from PyQt5.QtCore import Qt
 
 
 class ReferenceImageGenerator:
     """Generator for reference test pattern image."""
     
-    def __init__(self, width=600, height=400):
+    def __init__(self, width=600):
         """
         Initialize image generator.
         
         Args:
             width (int): Image width in pixels
-            height (int): Image height in pixels
         """
         self.width = width
-        self.height = height
-    
+        self.barHeight = 30  # Высота одной градиентной полосы
+        self.barMargin = 5   # Отступ между полосами в паре и между парами
+        self.blockHeight = 80 # Высота одного блока цвета
+        self.blockMargin = 5 # Отступ между блоками цвета
+        self.numColorBlocks = 8 # Количество цветовых блоков
+        self.numGradientBars = 3 # Количество градиентных полос
+
+        self.calculatedHeight = self._calculateImageHeight()
+
+    def _calculateImageHeight(self):
+        """Рассчитывает общую высоту генерируемого изображения."""
+        # Высота для градиентных полос: (высота_полосы * 2 + отступ_между_парами) * количество_пар - отступ_между_парами
+        gradients_height = (self.barHeight * 2 + self.barMargin) * self.numGradientBars - self.barMargin
+        # Высота для цветовых блоков: высота_блока + отступ_сверху_и_снизу
+        blocks_height = self.blockHeight + self.blockMargin * 2
+        
+        # Общая высота = высота_градиентов + высота_блоков + небольшой_отступ_между_ними
+        return gradients_height + self.barMargin + blocks_height
+
     def generateImage(self, gammaValues=None):
-        """Generates a reference test pattern image with gradients and color blocks.
+        """Генерирует комбинированное эталонное изображение со статическими и динамическими компонентами.
 
-    Args:
-        gammaValues (dict, optional): A dictionary containing 'red', 'green', and 'blue'
-            gamma values. If None, default values of 1.0 are used for all channels.
+        Args:
+            gammaValues (dict, optional): Словарь, содержащий значения гаммы ('red', 'green', 'blue')
+                для динамической части. По умолчанию для всех каналов используется 1.0.
 
-    Returns:
-        QPixmap: The generated reference image, with gamma correction applied if specified.
-    """
+        Returns:
+            QPixmap: Итоговое комбинированное эталонное изображение.
+        """
         if gammaValues is None:
             gammaValues = {'red': 1.0, 'green': 1.0, 'blue': 1.0}
-        
-        # Инициализируем QImage для эффективной отрисовки графических примитивов и последующей работы с пикселями.
-        image = QImage(self.width, self.height, QImage.Format_RGB32)
+
+        image = QImage(self.width, self.calculatedHeight, QImage.Format_ARGB32)
+        image.fill(Qt.transparent)
         painter = QPainter(image)
         painter.setRenderHint(QPainter.Antialiasing)
         
-        # Заполняем фон нейтральным серым цветом, чтобы обеспечить однородную основу для тестового паттерна.
-        painter.fillRect(0, 0, self.width, self.height, QColor(128, 128, 128))
+        currentY = 0
+
+        # Отрисовка градиентных полос (статическая и динамическая части)
+        for i in range(self.numGradientBars):
+            color_map = [
+                QColor(255, 0, 0),
+                QColor(0, 255, 0),
+                QColor(0, 0, 255)
+            ][i]
+            channel = ['red', 'green', 'blue'][i]
+
+            # Статическая полоса
+            self._drawGradientBar(painter, 0, currentY, self.width, self.barHeight,
+                                  QColor(0, 0, 0), color_map, Qt.Horizontal)
+            currentY += self.barHeight
+            
+            # Динамическая полоса
+            dynamic_color_map = self._applyGammaToColor(color_map, gammaValues[channel], channel)
+            self._drawGradientBar(painter, 0, currentY, self.width, self.barHeight,
+                                  QColor(0, 0, 0), dynamic_color_map, Qt.Horizontal,
+                                  gammaValues[channel] if channel else 1.0)
+            currentY += self.barHeight + self.barMargin
         
-        # Рисуем горизонтальные градиентные полосы для каждого цветового канала, чтобы визуально оценить их отклик на гамма-коррекцию.
-        barHeight = self.height // 4
-        margin = 10
-        
-        # Градиент для красного канала, чтобы проверить линейность его отображения.
-        self._drawGradientBar(
-            painter,
-            0, margin,
-            self.width, barHeight - margin * 2,
-            QColor(0, 0, 0),
-            QColor(255, 0, 0),
-            Qt.Horizontal
-        )
-        
-        # Градиент для зеленого канала, чтобы проверить линейность его отображения.
-        self._drawGradientBar(
-            painter,
-            0, barHeight + margin,
-            self.width, barHeight - margin * 2,
-            QColor(0, 0, 0),
-            QColor(0, 255, 0),
-            Qt.Horizontal
-        )
-        
-        # Градиент для синего канала, чтобы проверить линейность его отображения.
-        self._drawGradientBar(
-            painter,
-            0, barHeight * 2 + margin,
-            self.width, barHeight - margin * 2,
-            QColor(0, 0, 0),
-            QColor(0, 0, 255),
-            Qt.Horizontal
-        )
-        
-        # Добавляем блок цветовых образцов в нижней части изображения для быстрой оценки смешивания цветов и насыщенности.
-        blockY = barHeight * 3
-        blockHeight = barHeight - margin * 2
-        blockWidth = self.width // 8
-        
-        # Отрисовываем фиксированные цветовые блоки для каждого основного и смешанного цвета, чтобы оценить их точное отображение после гамма-коррекции.
+        # Добавляем небольшой отступ перед блоками цветов
+        currentY += self.barMargin
+
+        # Отрисовка цветовых блоков (статическая и динамическая части)
+        blockWidth = self.width // self.numColorBlocks
         colors = [
-            QColor(255, 0, 0),      # Красный компонент для проверки отдельных каналов.
-            QColor(0, 255, 0),      # Зеленый компонент для проверки отдельных каналов.
-            QColor(0, 0, 255),      # Синий компонент для проверки отдельных каналов.
-            QColor(255, 255, 0),    # Желтый (красный + зеленый) для проверки смешивания.
-            QColor(0, 255, 255),    # Циан (зеленый + синий) для проверки смешивания.
-            QColor(255, 0, 255),    # Маджента (красный + синий) для проверки смешивания.
-            QColor(255, 255, 255),  # Белый (все компоненты максимальны) для проверки максимальной яркости.
-            QColor(0, 0, 0)         # Черный (все компоненты минимальны) для проверки минимальной яркости.
+            QColor(255, 0, 0), QColor(0, 255, 0), QColor(0, 0, 255),
+            QColor(255, 255, 0), QColor(0, 255, 255), QColor(255, 0, 255),
+            QColor(255, 255, 255), QColor(0, 0, 0)
         ]
-        
+
         for i, color in enumerate(colors):
-            x = i * blockWidth + margin
-            painter.fillRect(
-                x, blockY + margin,
-                blockWidth - margin * 2, blockHeight,
-                color
-            )
-        
+            x = i * blockWidth + self.blockMargin
+            width = blockWidth - self.blockMargin * 2
+
+            # Статическая часть блока
+            painter.fillRect(x, currentY, width // 2, self.blockHeight, color)
+
+            # Динамическая часть блока
+            dynamic_color = self._applyGammaToColor(color, gammaValues['red'] if i == 0 else gammaValues['green'] if i == 1 else gammaValues['blue'] if i == 2 else 1.0, 'all') # TODO: Уточнить применение гаммы к смешанным цветам
+            painter.fillRect(x + width // 2, currentY, width // 2, self.blockHeight, dynamic_color)
+
         painter.end()
-        
-        # Применяем гамма-коррекцию к сгенерированному изображению, чтобы отразить текущие настройки системы или запрошенные значения.
-        self._applyGammaToImage(image, gammaValues)
-        
-        # Конвертируем QImage в QPixmap для оптимизации отображения в GUI-элементах.
         return QPixmap.fromImage(image)
-    
-    def _drawGradientBar(self, painter, x, y, width, height, startColor, endColor, orientation):
-        """
-        Draw a gradient bar.
-        
-        Args:
-            painter (QPainter): Painter object
-            x (int): X position
-            y (int): Y position
-            width (int): Bar width
-            height (int): Bar height
-            startColor (QColor): Start color
-            endColor (QColor): End color
-            orientation (Qt.Orientation): Gradient orientation
-        """
-        from PyQt5.QtGui import QLinearGradient
-        
+
+    def _drawGradientBar(self, painter, x, y, width, height, startColor, endColor, orientation, gamma=1.0):
         gradient = QLinearGradient(x, y, x + width if orientation == Qt.Horizontal else x, y + height)
+        
+        # Применяем гамма-коррекцию к цветам градиента, если это динамическая полоса
+        if gamma != 1.0:
+            startColor = self._applyGammaToColor(startColor, gamma)
+            endColor = self._applyGammaToColor(endColor, gamma)
+
         gradient.setColorAt(0, startColor)
         gradient.setColorAt(1, endColor)
         
         painter.fillRect(x, y, width, height, gradient)
 
-    def _applyGammaToImage(self, image, gammaValues):
-        """Applies gamma correction to the image based on provided gamma values.
+    def _applyGammaToColor(self, color, gamma, channel='all'):
+        redGamma = gamma if channel == 'red' or channel == 'all' else 1.0
+        greenGamma = gamma if channel == 'green' or channel == 'all' else 1.0
+        blueGamma = gamma if channel == 'blue' or channel == 'all' else 1.0
 
-    Args:
-        image (QImage): The QImage object to which gamma correction will be applied.
-        gammaValues (dict): A dictionary containing 'red', 'green', and 'blue' gamma values.
-    """
-        redGamma = max(gammaValues.get('red', 1.0), 0.001)
-        greenGamma = max(gammaValues.get('green', 1.0), 0.001)
-        blueGamma = max(gammaValues.get('blue', 1.0), 0.001)
-        
-        # Создаем lookup tables для каждого канала для ускорения обработки
-        # Это позволяет избежать повторных вычислений pow() для одинаковых значений
-        redLUT = [self._applyGammaChannel(i, redGamma) for i in range(256)]
-        greenLUT = [self._applyGammaChannel(i, greenGamma) for i in range(256)]
-        blueLUT = [self._applyGammaChannel(i, blueGamma) for i in range(256)]
-        
-        # Применяем гамма-коррекцию к каждому пикселю, используя предварительно вычисленные таблицы для повышения производительности.
-        for y in range(image.height()):
-            for x in range(image.width()):
-                color = QColor(image.pixel(x, y))
-                r = redLUT[color.red()]
-                g = greenLUT[color.green()]
-                b = blueLUT[color.blue()]
-                image.setPixelColor(x, y, QColor(r, g, b))
+        r = self._applyGammaChannel(color.red(), redGamma)
+        g = self._applyGammaChannel(color.green(), greenGamma)
+        b = self._applyGammaChannel(color.blue(), blueGamma)
+
+        return QColor(r, g, b, color.alpha())
 
     def _applyGammaChannel(self, value, gamma):
-        """Applies gamma correction to a single color channel value.
-
-    This helper function normalizes the input value (0-255) to a 0.0-1.0 range,
-    applies the gamma power function, and then scales it back to 0-255.
-
-    Args:
-        value (int): The original 8-bit color channel value (0-255).
-        gamma (float): The gamma value to apply.
-
-    Returns:
-        int: The gamma-corrected 8-bit color channel value (0-255).
-    """
         normalized = (value / 255.0) or 0.0
         adjusted = pow(normalized, 1.0 / gamma) if normalized > 0 else 0.0
         return int(max(0, min(255, round(adjusted * 255))))
