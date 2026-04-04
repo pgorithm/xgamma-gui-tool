@@ -428,6 +428,80 @@ class GammaMainWindow(QMainWindow):
             app.installEventFilter(self)
             app.focusChanged.connect(self._onApplicationFocusChanged)
 
+        self._init_read_source = None
+
+    def retranslateUi(self):
+        """Refresh all user-visible strings after QTranslator change (PRD 3.11.12 / TASK-016)."""
+        self.setWindowTitle(self.tr('xgamma GUI Tool'))
+        self.settingsButton.setToolTip(self.tr('Settings'))
+        self._bannerDismissButton.setText(self.tr('Dismiss'))
+        self._bannerDismissButton.setToolTip(
+            self.tr('Hide this notice. The warning icon stays for details.')
+        )
+
+        if not self._gammaControlsReady:
+            self.referenceLabel.setText(self.tr('Reading display gamma…'))
+            self.statusBar.showMessage(self.tr('Loading initial settings…'))
+        else:
+            if self._init_read_source is not None:
+                self._showPostInitStatusBarMessage()
+
+        channels = [
+            ('red', self.tr('Red')),
+            ('green', self.tr('Green')),
+            ('blue', self.tr('Blue')),
+            ('all', self.tr('All')),
+        ]
+        font_metrics = QFontMetrics(self.font())
+        max_label_width = max(font_metrics.width(f'{label}:') for _, label in channels) + 10
+        for channel, label in channels:
+            lbl = self._channelLabels[channel]
+            lbl.setText(f'{label}:')
+            lbl.setFixedWidth(max_label_width)
+
+        _rgb_tip = self.tr(
+            '1.0 means no change for this channel. '
+            'Use Red, Green, and Blue to correct tint and white balance; use All to apply '
+            'the same factor to every channel. '
+            'Focus this row (Tab or click the label), then use ←/→ to adjust gamma; '
+            'hold Shift for larger steps.'
+        )
+        _rgb_status = self.tr(
+            '1.0 neutral; R/G/B for cast, All to scale all channels.'
+        )
+        for ch in ('red', 'green', 'blue'):
+            for w in (
+                self._channelLabels[ch],
+                self.sliders[ch],
+                self.valueInputs[ch],
+            ):
+                w.setToolTip(_rgb_tip)
+                w.setStatusTip(_rgb_status)
+
+        _all_tip = self.tr(
+            'When Red, Green, and Blue match, 1.0 is neutral for all. '
+            'While they differ, this row shows their arithmetic average. '
+            'Moving the All slider sets all three channels to the same gamma value. '
+            'Focus this row (Tab or click the label), then use ←/→; hold Shift for larger steps.'
+        )
+        _all_status = self.tr(
+            '1.0 when matched; average when R/G/B differ; All drag equalizes channels.'
+        )
+        for w in (
+            self._channelLabels['all'],
+            self.sliders['all'],
+            self.valueInputs['all'],
+        ):
+            w.setToolTip(_all_tip)
+            w.setStatusTip(_all_status)
+
+        self.resetButton.setText(self.tr('Reset'))
+        self.saveButton.setText(self.tr('Apply'))
+
+        self._updateWarningIndicator()
+        if self.warningMessages and not self._environmentBannerDismissed:
+            self._updateEnvironmentBanner()
+
     def _onApplicationFocusChanged(self, old, new):
         """Keep activeChannel aligned with keyboard focus (PRD 3.5, 3.11.7)."""
         if not self._gammaControlsReady:
@@ -465,6 +539,7 @@ class GammaMainWindow(QMainWindow):
         current = results['gamma']
         self.warningMessages = results['warnings']
         read_source = results.get('gamma_read_source', 'default')
+        self._init_read_source = read_source
 
         self.isUpdating = True
 
@@ -506,6 +581,33 @@ class GammaMainWindow(QMainWindow):
         self._updateWarningIndicator()
         self._updateEnvironmentBanner()
         raw_diag = self.gammaCore.getLastRawOutput().strip()
+        if read_source == 'xgamma':
+            if raw_diag:
+                _logger.info(
+                    'xgamma diagnostic (truncated): %s',
+                    raw_diag[:500] + ('...' if len(raw_diag) > 500 else ''),
+                )
+        elif read_source == 'xrandr':
+            if raw_diag:
+                _logger.info(
+                    'xgamma diagnostic (truncated): %s',
+                    raw_diag[:500] + ('...' if len(raw_diag) > 500 else ''),
+                )
+        elif raw_diag:
+            _logger.warning(
+                'Gamma read failed; diagnostic (truncated): %s',
+                raw_diag[:500] + ('...' if len(raw_diag) > 500 else ''),
+            )
+
+        self._showPostInitStatusBarMessage()
+
+        self.isUpdating = False
+
+    def _showPostInitStatusBarMessage(self):
+        """Steady status after init; also used when UI language changes (TASK-016)."""
+        read_source = self._init_read_source
+        if read_source is None:
+            return
         env_hint = (
             self.tr(' Environment may limit gamma — see the notice above.')
             if self.warningMessages
@@ -521,11 +623,6 @@ class GammaMainWindow(QMainWindow):
                 self.tr('Gamma from xrandr (xgamma output was not recognized).') + env_hint,
                 12000 if env_hint else 8000,
             )
-            if raw_diag:
-                _logger.info(
-                    'xgamma diagnostic (truncated): %s',
-                    raw_diag[:500] + ('...' if len(raw_diag) > 500 else ''),
-                )
         else:
             self.statusBar.showMessage(
                 self.tr(
@@ -535,13 +632,6 @@ class GammaMainWindow(QMainWindow):
                 + env_hint,
                 14000 if env_hint else 10000,
             )
-            if raw_diag:
-                _logger.warning(
-                    'Gamma read failed; diagnostic (truncated): %s',
-                    raw_diag[:500] + ('...' if len(raw_diag) > 500 else ''),
-                )
-
-        self.isUpdating = False
 
     def _updateReferenceImage(self, gammaValues=None):
         """Update the reference image with the current gamma values.

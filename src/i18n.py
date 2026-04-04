@@ -273,6 +273,13 @@ def reinstall_translators(app) -> None:
     install_translators(app)
 
 
+def apply_ui_language(app, main_window) -> None:
+    """Reinstall translators from QSettings and refresh main window strings (TASK-016 / PRD 3.11.12)."""
+    reinstall_translators(app)
+    if main_window is not None:
+        main_window.retranslateUi()
+
+
 def _label_for_extra_qm(path: Path) -> str:
     stem = path.stem
     prefix = "xgamma_gui_"

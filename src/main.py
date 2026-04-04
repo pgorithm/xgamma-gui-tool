@@ -83,6 +83,7 @@ def main():
     
     # Создаем и отображаем главное окно
     mainWindow = GammaMainWindow(gammaCore, configManager)
+    mainWindow.retranslateUi()
     mainWindow.show()
     
     # Запускаем приложение
