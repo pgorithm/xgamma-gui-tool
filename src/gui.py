@@ -489,6 +489,18 @@ class GammaMainWindow(QMainWindow):
         pixmap = self.imageGenerator.generateImage(gammaValues)
         self.referenceLabel.setPixmap(pixmap)
 
+    def _showGammaApplyFailure(self):
+        """User-visible status when xgamma apply fails; full output kept in GammaCore."""
+        detail = self.gammaCore.getLastApplyRawOutput().strip()
+        base = 'Could not apply gamma to the display.'
+        if detail:
+            one_line = ' '.join(detail.split())
+            if len(one_line) > 180:
+                one_line = one_line[:177] + '...'
+            self.statusBar.showMessage('{} {}'.format(base, one_line), 10000)
+        else:
+            self.statusBar.showMessage(base, 8000)
+
     def _applyPendingGamma(self):
         """Applies the accumulated pending gamma values to the system.
 
@@ -500,13 +512,15 @@ class GammaMainWindow(QMainWindow):
             return
         
         if 'overall' in self.pendingGamma:
-            self.gammaCore.applyGamma(overall=self.pendingGamma['overall'])
+            ok = self.gammaCore.applyGamma(overall=self.pendingGamma['overall'])
         else:
-            self.gammaCore.applyGamma(
+            ok = self.gammaCore.applyGamma(
                 red=self.pendingGamma.get('red'),
                 green=self.pendingGamma.get('green'),
                 blue=self.pendingGamma.get('blue')
             )
+        if not ok:
+            self._showGammaApplyFailure()
         self.pendingGamma = None
     
     def _sliderValueToGamma(self, sliderValue):
@@ -730,8 +744,8 @@ class GammaMainWindow(QMainWindow):
     def _onResetClicked(self):
         """Handle reset button click."""
         self.isUpdating = True
-        
-                # Блокируем сигналы от ползунков, чтобы избежать нежелательных обновлений GUI во время операции сброса.
+
+        # Блокируем сигналы от ползунков, чтобы избежать нежелательных обновлений GUI во время операции сброса.
         for slider in self.sliders.values():
             slider.blockSignals(True)
         
@@ -748,10 +762,13 @@ class GammaMainWindow(QMainWindow):
         self.currentGamma = {'red': 1.0, 'green': 1.0, 'blue': 1.0}
         self.gammaApplyTimer.stop()  # Отменяем любые отложенные задачи применения гаммы, чтобы гарантировать немедленный сброс значений.
         self.pendingGamma = None
-        self.gammaCore.applyGamma(overall=1.0)
-        
+        apply_ok = self.gammaCore.applyGamma(overall=1.0)
+
         # Удаляем приложение из автозапуска, если оно было туда добавлено, чтобы полностью сбросить настройки.
-        if self.configManager.removeFromAutostart():
+        removed = self.configManager.removeFromAutostart()
+        if not apply_ok:
+            self._showGammaApplyFailure()
+        elif removed:
             self.statusBar.showMessage('Reset to defaults and removed from autostart', 3000)
         else:
             self.statusBar.showMessage('Reset to defaults', 3000)

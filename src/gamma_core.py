@@ -22,6 +22,7 @@ class GammaCore:
         """Initialize GammaCore and check xgamma availability."""
         self.xgammaPath = self._findXgamma()
         self.lastRawOutput = ''  # Последний stdout от xgamma, для отладки
+        self.lastApplyRawOutput = ''  # Вывод последнего вызова xgamma при apply (успех или сбой)
     
     def _findXgamma(self):
         """
@@ -88,6 +89,10 @@ class GammaCore:
     def getLastRawOutput(self):
         """Return raw stdout from latest xgamma call."""
         return self.lastRawOutput
+
+    def getLastApplyRawOutput(self):
+        """Return captured stdout/stderr from the latest applyGamma run."""
+        return self.lastApplyRawOutput
     
     def applyGamma(self, red=None, green=None, blue=None, overall=None):
         """
@@ -103,6 +108,7 @@ class GammaCore:
             bool: True if command executed successfully, False otherwise
         """
         if not self.isXgammaAvailable():
+            self.lastApplyRawOutput = 'xgamma not available'
             return False
         
         # Собираем аргументы для команды xgamma, чтобы применить коррекцию гаммы.
@@ -127,8 +133,16 @@ class GammaCore:
                 text=True,
                 timeout=5
             )
+            out = (result.stdout or '').strip()
+            err = (result.stderr or '').strip()
+            parts = [p for p in (out, err) if p]
+            self.lastApplyRawOutput = '\n'.join(parts) if parts else '(no output)'
             return result.returncode == 0
-        except (subprocess.TimeoutExpired, Exception):
+        except subprocess.TimeoutExpired as error:
+            self.lastApplyRawOutput = 'timeout: {}'.format(error)
+            return False
+        except Exception as error:
+            self.lastApplyRawOutput = str(error)
             return False
     
     def buildXgammaCommand(self, red=None, green=None, blue=None, overall=None):
