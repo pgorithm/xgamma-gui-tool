@@ -138,10 +138,23 @@ jobs:
           echo "deb_file=$DEB_FILE_ABS" >> $GITHUB_OUTPUT
           echo "Found DEB package: $DEB_FILE_ABS"
 
+      - name: Generate SHA256SUMS for release assets
+        id: checksums
+        run: |
+          DEB_FILE="${{ steps.find_deb.outputs.deb_file }}"
+          DEB_DIR=$(dirname "$DEB_FILE")
+          DEB_BASE=$(basename "$DEB_FILE")
+          (cd "$DEB_DIR" && sha256sum "$DEB_BASE" > SHA256SUMS)
+          SUMS_FILE="${DEB_DIR}/SHA256SUMS"
+          echo "sums_file=$SUMS_FILE" >> $GITHUB_OUTPUT
+          cat "$SUMS_FILE"
+
       - name: Upload DEB to release
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe # v2.6.1
         with:
-          files: ${{ steps.find_deb.outputs.deb_file }}
+          files: |
+            ${{ steps.find_deb.outputs.deb_file }}
+            ${{ steps.checksums.outputs.sums_file }}
           tag_name: ${{ github.event.release.tag_name }}
           fail_on_unmatched_files: true
         env:

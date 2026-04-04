@@ -91,7 +91,7 @@ def _create_info_icon():
 class AboutDialog(QDialog):
     """Modal about box: app name, version from version_info, project link."""
 
-    _GH_URL = 'https://github.com/pgorithm/xgamma_gui_tool'
+    _GH_URL = 'https://github.com/pgorithm/xgamma-gui-tool'
 
     def __init__(self, parent=None):
         super().__init__(parent)

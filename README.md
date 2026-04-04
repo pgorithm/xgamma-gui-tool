@@ -12,7 +12,19 @@ xgamma GUI Tool provides a simple, minimalist interface for adjusting gamma corr
 
 ## Download
 
-Pre-built .deb packages are available in [Releases](https://github.com/pgorithm/xgamma-gui-tool/releases).
+**Canonical repository (source and releases):** [github.com/pgorithm/xgamma-gui-tool](https://github.com/pgorithm/xgamma-gui-tool)
+
+Pre-built `.deb` packages are published on the [Releases](https://github.com/pgorithm/xgamma-gui-tool/releases) page for that repository only. Do not treat other spellings or forks as the official distribution channel unless you explicitly trust them.
+
+### Verify the `.deb` package (integrity)
+
+Published releases attach a `SHA256SUMS` file alongside the `.deb`. Download both into the same directory, then run:
+
+```bash
+sha256sum -c SHA256SUMS
+```
+
+You should see `OK` for the `.deb` filename. If the check fails, do not install; re-download from the release page.
 
 ## Requirements
 
@@ -28,9 +40,9 @@ Run the following commands one by one in the terminal:
 ```bash
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y python3 python3-venv python3-pip git x11-xserver-utils
-wget https://github.com/pgorithm/xgamma_gui_tool/archive/refs/heads/main.zip -O xgamma_gui_tool.zip
-unzip xgamma_gui_tool.zip
-cd xgamma_gui_tool-main
+wget https://github.com/pgorithm/xgamma-gui-tool/archive/refs/heads/main.zip -O xgamma-gui-tool-main.zip
+unzip xgamma-gui-tool-main.zip
+cd xgamma-gui-tool-main
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
@@ -122,7 +134,7 @@ python3 main.py
 ## Project Structure
 
 ```
-xgamma_gui_tool/
+xgamma-gui-tool/
 ├── main.py                 # Entry point (can be run from root)
 ├── src/
 │   ├── __init__.py
