@@ -5,6 +5,8 @@ Single source for PRD 3.1 / 3.8 warnings; avoid duplicating logic in gui stubs.
 
 import subprocess
 
+from .command_resolution import resolve_command
+
 VM_WARNING = 'VM environment may limit gamma adjustment.'
 HDR_WARNING = 'HDR or 10-bit mode may disable manual gamma adjustment.'
 
@@ -38,9 +40,13 @@ class EnvironmentProbe:
             if lowered and any(word in lowered for word in keywords):
                 self._is_vm_cached = True
                 return True
+        virt = resolve_command('systemd-detect-virt')
+        if not virt:
+            self._is_vm_cached = False
+            return False
         try:
             result = subprocess.run(
-                ['systemd-detect-virt'],
+                [virt],
                 capture_output=True,
                 text=True,
                 timeout=2,
@@ -56,9 +62,13 @@ class EnvironmentProbe:
         if self._is_hdr_cached is not None:
             return self._is_hdr_cached
 
+        xrandr_path = resolve_command('xrandr')
+        if not xrandr_path:
+            self._is_hdr_cached = False
+            return False
         try:
             result = subprocess.run(
-                ['xrandr', '--verbose'],
+                [xrandr_path, '--verbose'],
                 capture_output=True,
                 text=True,
                 timeout=3,

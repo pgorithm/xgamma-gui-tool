@@ -8,9 +8,9 @@ gamma values from the system.
 
 import math
 import re
-import shutil
 import subprocess
 
+from .command_resolution import resolve_command
 from .desktop_entry import format_desktop_exec_line
 
 
@@ -34,12 +34,12 @@ class GammaCore:
     
     def _findXgamma(self):
         """
-        Find xgamma executable in system PATH.
+        Find xgamma executable in system PATH (optional SEC-001 trusted prefixes).
         
         Returns:
             str: Path to xgamma executable or None if not found
         """
-        return shutil.which('xgamma')
+        return resolve_command('xgamma')
     
     def isXgammaAvailable(self):
         """
@@ -317,9 +317,12 @@ class GammaCore:
 
     def _readGammaFromXrandr(self):
         """Fallback gamma detection using xrandr --verbose output."""
+        xrandr_path = resolve_command('xrandr')
+        if not xrandr_path:
+            return None, False
         try:
             result = subprocess.run(
-                ['xrandr', '--verbose'],
+                [xrandr_path, '--verbose'],
                 capture_output=True,
                 text=True,
                 timeout=5

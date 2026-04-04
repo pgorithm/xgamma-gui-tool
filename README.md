@@ -33,6 +33,21 @@ You should see `OK` for the `.deb` filename. If the check fails, do not install;
 - xgamma (x11-xserver-utils package)
 - PyQt5
 
+### PATH and trusted executables (SEC-001)
+
+The app locates `xgamma`, `xrandr`, and `systemd-detect-virt` by name on your `PATH`, like a shell would: **the first matching executable wins**. If an attacker or a misconfigured account prepends a writable directory to `PATH`, a malicious binary with those names could run instead of the system tools.
+
+**Recommendations:** install packages from your distribution (e.g. `x11-xserver-utils` on Debian/Ubuntu) so tools normally live under `/usr/bin`; avoid prepending untrusted or world-writable directories to `PATH` when starting the app; on shared or high-risk systems, use a minimal `PATH` for your session.
+
+**Optional hardening:** set `XGAMMA_GUI_TOOL_TRUSTED_PREFIXES` to a list of allowed **directory** roots, separated with the same character as `PATH` (`:` on Linux). Only executables whose resolved path lies under one of these directories are used. Example:
+
+```bash
+export XGAMMA_GUI_TOOL_TRUSTED_PREFIXES="/usr/bin:/bin"
+python3 main.py
+```
+
+If no executable matches those prefixes, the app behaves as if the tool were missing (e.g. no `xgamma` → startup dependency warning). When the variable is unset, behavior is unchanged from earlier releases (first match on `PATH`).
+
 ## Quick setup (fresh system)
 
 Run the following commands one by one in the terminal:
@@ -140,6 +155,7 @@ xgamma-gui-tool/
 │   ├── __init__.py
 │   ├── main.py            # Main application entry point
 │   ├── gamma_core.py      # Gamma management logic
+│   ├── command_resolution.py  # PATH / trusted-prefix lookup for external commands
 │   ├── gui.py             # GUI implementation
 │   ├── config_manager.py  # Autostart configuration
 │   └── reference_image.py # Reference image generation
