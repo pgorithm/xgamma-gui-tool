@@ -24,6 +24,7 @@ from PyQt5.QtGui import (
 from .gamma_core import GammaCore
 from .reference_image import ReferenceImageGenerator
 from .config_manager import ConfigManager
+from .version_info import __version__ as APP_VERSION
 from PyQt5.QtCore import QThread, pyqtSignal
 
 _logger = logging.getLogger(__name__)
@@ -238,6 +239,31 @@ def _create_info_icon():
     painter.end()
     return QIcon(pixmap)
 
+
+class AboutDialog(QDialog):
+    """Modal about box: app name, version from version_info, project link."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('About xgamma GUI Tool')
+        self.setModal(True)
+
+        layout = QVBoxLayout(self)
+        title = QLabel('<h3 style="margin:0">xgamma GUI Tool</h3>')
+        layout.addWidget(title)
+        ver = QLabel(f'<b>Version:</b> {html.escape(APP_VERSION)}')
+        layout.addWidget(ver)
+        gh_url = 'https://github.com/pgorithm/xgamma_gui_tool'
+        link = QLabel(f'<a href="{html.escape(gh_url)}">Project on GitHub</a>')
+        link.setOpenExternalLinks(True)
+        layout.addWidget(link)
+        layout.addWidget(QLabel('Author: pgorithm'))
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok)
+        buttons.accepted.connect(self.accept)
+        layout.addWidget(buttons)
+
+
 class SettingsDialog(QDialog):
     """Модальное окно настроек."""
 
@@ -251,16 +277,10 @@ class SettingsDialog(QDialog):
         mainLayout = QVBoxLayout(self)
         mainLayout.setSpacing(15)
 
-        about_button = SettingsButton(
-            icon=_create_info_icon(),
-            text="About"
-        )
-        about_button.setToolTip(
-            "Version: dev\n"
-            "Author: pgorithm\n"
-            "GitHub: https://github.com/pgorithm/xgamma_gui_tool\n"
-            "hello, world!"
-        )
+        about_button = QPushButton(_create_info_icon(), 'About', self)
+        about_button.setIconSize(QSize(22, 22))
+        about_button.setToolTip('Open version and project information')
+        about_button.clicked.connect(lambda: AboutDialog(self).exec_())
         mainLayout.addWidget(about_button)
 
         buttonBox = QDialogButtonBox(QDialogButtonBox.Close)

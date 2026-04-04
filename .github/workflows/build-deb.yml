@@ -74,6 +74,10 @@ jobs:
             echo "ERROR: Changelog version update failed!"
             exit 1
           fi
+          # Keep About dialog / runtime __version__ in sync with the release tag
+          sed -i "s/^__version__ = .*/__version__ = \"${VERSION}\"/" deb_build/src/version_info.py
+          echo "version_info.py __version__ line:"
+          grep '^__version__' deb_build/src/version_info.py
           echo "Full changelog for format verification:"
           cat deb_build/debian/changelog
           echo "---"
