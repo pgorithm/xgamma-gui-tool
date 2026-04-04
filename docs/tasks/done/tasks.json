@@ -256,7 +256,7 @@
         "Шаг 3: короткий запуск GUI — без регрессий"
       ],
       "dependencies": [],
-      "status": "pending"
+      "status": "done"
     }
   ]
 }

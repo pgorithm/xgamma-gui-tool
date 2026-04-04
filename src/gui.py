@@ -544,12 +544,12 @@ class GammaMainWindow(QMainWindow):
         self.isUpdating = False
 
     def _updateReferenceImage(self, gammaValues=None):
-        """Updates the reference image display with the current gamma values.
+        """Update the reference image with the current gamma values.
 
-    Args:
-        gammaValues (dict, optional): A dictionary containing 'red', 'green', and 'blue'
-            gamma values. If None, self.currentGamma is used.
-    """
+        Args:
+            gammaValues: Optional dict with 'red', 'green', and 'blue'. If
+                None, self.currentGamma is used.
+        """
         if gammaValues is None:
             gammaValues = self.currentGamma
         self._referencePixmapFull = self.imageGenerator.generateImage(gammaValues)
@@ -586,17 +586,16 @@ class GammaMainWindow(QMainWindow):
             self.statusBar.showMessage(base, 8000)
 
     def _applyPendingGamma(self):
-        """Applies the accumulated pending gamma values to the system.
+        """Apply pending gamma to the display via GammaCore.
 
-    This method is typically called by a QTimer to apply gamma corrections
-    after a short delay, preventing excessive `xgamma` calls during slider
-    or input field adjustments.
-    """
+        Called from a QTimer after a short delay to avoid excessive xgamma
+        invocations while sliders or value fields change.
+        """
         if not self._gammaControlsReady:
             return
         if self.pendingGamma is None:
             return
-        
+
         if 'overall' in self.pendingGamma:
             ok = self.gammaCore.applyGamma(overall=self.pendingGamma['overall'])
         else:
@@ -608,7 +607,7 @@ class GammaMainWindow(QMainWindow):
         if not ok:
             self._showGammaApplyFailure()
         self.pendingGamma = None
-    
+
     def _sliderValueToGamma(self, sliderValue):
         """
         Convert slider value to gamma value.
@@ -858,22 +857,24 @@ class GammaMainWindow(QMainWindow):
             return
         self.isUpdating = True
 
-        # Блокируем сигналы от ползунков, чтобы избежать нежелательных обновлений GUI во время операции сброса.
+        # Блокируем сигналы от ползунков, чтобы избежать нежелательных
+        # обновлений GUI во время операции сброса.
         for slider in self.sliders.values():
             slider.blockSignals(True)
-        
-        # Сбрасываем все ползунки и поля ввода к значениям по умолчанию (1.000), чтобы пользователь мог быстро вернуться к исходным настройкам.
+
+        # Сбрасываем ползунки и поля ввода к 1.000 для быстрого возврата к умолчанию.
         for channel in ['red', 'green', 'blue', 'all']:
             self.sliders[channel].setValue(100)  # 1.0 * 100
             self.valueInputs[channel].setText('1.000')
-        
-        # Снимаем блокировку сигналов
+
+        # Снимаем блокировку сигналов.
         for slider in self.sliders.values():
             slider.blockSignals(False)
-        
-        # Применяем гамму по умолчанию немедленно, чтобы пользователь сразу видел результат сброса.
+
+        # Применяем гамму по умолчанию сразу, чтобы результат сброса был виден.
         self.currentGamma = {'red': 1.0, 'green': 1.0, 'blue': 1.0}
-        self.gammaApplyTimer.stop()  # Отменяем любые отложенные задачи применения гаммы, чтобы гарантировать немедленный сброс значений.
+        # Отменяем отложенное применение гаммы — сброс должен быть немедленным.
+        self.gammaApplyTimer.stop()
         self.pendingGamma = None
         apply_ok = self.gammaCore.applyGamma(overall=1.0)
 
