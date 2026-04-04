@@ -127,7 +127,7 @@ xgamma_gui_tool/
 
 ## Autostart
 
-When you click "Apply", the application creates a desktop file in `~/.config/autostart/` that runs the xgamma command on system startup. The "Reset" button removes all xgamma-related entries from autostart.
+Moving the sliders applies gamma to the display immediately (with a short debounce). The **Save to autostart** button (tooltip explains this) creates or overwrites `~/.config/autostart/xgamma_gui_tool.desktop` so the same xgamma command runs on the next login. **Reset** sets gamma to 1.0 and removes only that application autostart file, not other `.desktop` entries that mention xgamma.
 
 ## Error Handling
 
