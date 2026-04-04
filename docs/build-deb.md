@@ -4,12 +4,25 @@
 
 ## Локальная сборка
 
-1. Установите зависимости для сборки (тот же набор, что в [`.github/workflows/build-deb.yml`](../.github/workflows/build-deb.yml)):
+1. Установите зависимости для сборки — тот же набор пакетов, что в [`.github/workflows/build-deb.yml`](../.github/workflows/build-deb.yml).
+
+   **Что ставится:** `sudo apt update` обновляет списки пакетов. Затем одна команда `apt install` ставит всё нужное для `dpkg-buildpackage`: компилятор и базовые инструменты (`build-essential`), обвязку Debian-сборки (`debhelper`, `dh-python`), Python 3 для упаковки (`python3-all`, `python3-setuptools`), имитацию root при сборке (`fakeroot`) и скрипты разработчика пакетов, включая сам `dpkg-buildpackage` (`devscripts`). Флаг `-y` отвечает «да» на вопросы apt.
+
+   Скопируйте и выполните в терминале (Debian/Ubuntu или WSL). Два эквивалентных варианта `apt install`:
+
+   **Многострочный** (удобно читать; после `\` не должно быть пробелов):
 
    ```bash
    sudo apt update
    sudo apt install -y build-essential debhelper dh-python python3-all \
      python3-setuptools fakeroot devscripts
+   ```
+
+   **Одной строкой** (проще вставить целиком, без продолжений строк):
+
+   ```bash
+   sudo apt update
+   sudo apt install -y build-essential debhelper dh-python python3-all python3-setuptools fakeroot devscripts
    ```
 
 2. Перейдите в корень репозитория (где лежит каталог `debian/`) и соберите бинарный пакет без подписи:
