@@ -5,7 +5,10 @@ Handles dependency checks and application initialization.
 
 import logging
 import sys
+from pathlib import Path
+
 from PyQt5.QtCore import QCoreApplication
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication, QMessageBox
 from .gamma_core import GammaCore
 from .config_manager import ConfigManager
@@ -36,6 +39,12 @@ def checkDependencies():
     return True, QCoreApplication.translate("main", "Ok")
 
 
+def _application_icon_path():
+    root = Path(__file__).resolve().parent.parent
+    p = root / "assets" / "icons" / "app-icon.png"
+    return p if p.is_file() else None
+
+
 def main():
     """Main application entry point."""
     if not logging.root.handlers:
@@ -47,6 +56,9 @@ def main():
     # Создаем QApplication
     app = QApplication(sys.argv)
     app.setApplicationName('xgamma GUI Tool')
+    icon_path = _application_icon_path()
+    if icon_path is not None:
+        app.setWindowIcon(QIcon(str(icon_path)))
     install_translators(app)
 
     # Проверяем зависимости (xgamma)
