@@ -156,6 +156,10 @@ Some environments prevent xgamma from changing the picture. Use these checks bef
 - **Virtual machines**: Run `systemd-detect-virt` (expect `none` on bare metal) or inspect `/sys/class/dmi/id/product_name`. If virtualization is detected, enable GPU pass-through/3D acceleration or switch to a native Linux session because many VM display drivers ignore gamma commands.
 - **HDR or 10-bit modes**: Run `xrandr --verbose | grep -i "hdr\|10 bpc\|10-bit"` to see whether an HDR pipeline is active. Disable the HDR toggle in your desktop environment or force 8-bit color before retrying, because X11 gamma ramps are bypassed when HDR is enabled.
 
+## Development note
+
+This project was built with help from [Cursor](https://cursor.com), an AI-assisted code editor. If you are uncomfortable using software that was created with AI, you are welcome to skip this tool entirely—we promise not to tell anyone.
+
 ## License
 
 This project is provided as-is for educational and mentoring purposes.
