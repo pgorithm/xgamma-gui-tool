@@ -27,6 +27,8 @@ class GammaCore:
         self.lastApplyRawOutput = ''  # Вывод последнего вызова xgamma при apply (успех или сбой)
         # Источник значений при последнем getCurrentGamma: xgamma | xrandr | default
         self.lastGammaReadSource = 'default'
+        # True if last successful read had R/G/B outside [MIN_GAMMA, MAX_GAMMA] before clamp (SEC-011).
+        self.lastGammaReadClamped = False
     
     def _findXgamma(self):
         """
@@ -57,8 +59,10 @@ class GammaCore:
         if not self.isXgammaAvailable():
             self.lastRawOutput = 'xgamma not available'  # Нет бинарника — нет вывода
             self.lastGammaReadSource = 'default'
+            self.lastGammaReadClamped = False
             return self._defaultGammaValues()
         
+        self.lastGammaReadClamped = False
         try:
             # Запускаем xgamma без параметров, чтобы получить текущие значения гаммы
             result = subprocess.run(
@@ -72,28 +76,34 @@ class GammaCore:
             rawOutput = (result.stdout or '').strip() or (result.stderr or '').strip()
             self.lastRawOutput = rawOutput  # Сохраняем сырой вывод для дальнейшего анализа
             parsedGamma = self._parseGammaFromString(rawOutput)
-            if parsedGamma:
+            finalized, clamped = self._finalize_read_gamma_dict(parsedGamma)
+            if finalized:
+                self.lastGammaReadClamped = clamped
                 self.lastGammaReadSource = 'xgamma'
-                return parsedGamma
+                return finalized
             
             # Пробуем получить данные через xrandr как запасной вариант
-            fallbackGamma = self._readGammaFromXrandr()
+            fallbackGamma, fb_clamped = self._readGammaFromXrandr()
             if fallbackGamma:
                 self.lastRawOutput = 'xrandr fallback: {}'.format(fallbackGamma)
                 self.lastGammaReadSource = 'xrandr'
+                self.lastGammaReadClamped = fb_clamped
                 return fallbackGamma
             
             self.lastGammaReadSource = 'default'
+            self.lastGammaReadClamped = False
             return self._defaultGammaValues()
         except (subprocess.TimeoutExpired, ValueError, AttributeError, Exception) as error:
             # При любой ошибке пробуем fallback, иначе значения по умолчанию
             self.lastRawOutput = str(error)
-            fallbackGamma = self._readGammaFromXrandr()
+            fallbackGamma, fb_clamped = self._readGammaFromXrandr()
             if fallbackGamma:
                 self.lastRawOutput = 'xrandr fallback after error: {}'.format(fallbackGamma)
                 self.lastGammaReadSource = 'xrandr'
+                self.lastGammaReadClamped = fb_clamped
                 return fallbackGamma
             self.lastGammaReadSource = 'default'
+            self.lastGammaReadClamped = False
             return self._defaultGammaValues()
 
     def getLastRawOutput(self):
@@ -103,6 +113,10 @@ class GammaCore:
     def getLastGammaReadSource(self):
         """How current gamma values were obtained: xgamma, xrandr, or default."""
         return self.lastGammaReadSource
+
+    def getLastGammaReadClamped(self):
+        """True if last read values were outside product range and clamped (SEC-011)."""
+        return self.lastGammaReadClamped
 
     def getLastApplyRawOutput(self):
         """Return captured stdout/stderr from the latest applyGamma run."""
@@ -239,13 +253,41 @@ class GammaCore:
             'blue': self.DEFAULT_GAMMA
         }
 
+    # Matches a float token as printed by typical xgamma/xrandr (incl. scientific notation).
+    _FLOAT_TOKEN = r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?'
+
+    def _finalize_read_gamma_dict(self, parsed):
+        """
+        Require finite R/G/B and clamp to product range. Non-finite → parse failure (None).
+        Returns (dict | None, clamped_flag).
+        """
+        if not parsed:
+            return None, False
+        try:
+            r = float(parsed['red'])
+            g = float(parsed['green'])
+            b = float(parsed['blue'])
+        except (KeyError, TypeError, ValueError):
+            return None, False
+        if not all(math.isfinite(x) for x in (r, g, b)):
+            return None, False
+        out = {}
+        clamped = False
+        for key, v in (('red', r), ('green', g), ('blue', b)):
+            c = max(self.MIN_GAMMA, min(self.MAX_GAMMA, v))
+            if c != v:
+                clamped = True
+            out[key] = c
+        return out, clamped
+
     def _parseGammaFromString(self, text):
-        """Parse gamma triplet from xgamma stdout/stderr."""
+        """Parse gamma triplet from xgamma stdout/stderr (raw floats, not yet clamped)."""
         if not text:
             return None
-        redMatch = re.search(r'Red\s+([\d.]+)', text)
-        greenMatch = re.search(r'Green\s+([\d.]+)', text)
-        blueMatch = re.search(r'Blue\s+([\d.]+)', text)
+        t = self._FLOAT_TOKEN
+        redMatch = re.search(r'Red\s+({})'.format(t), text)
+        greenMatch = re.search(r'Green\s+({})'.format(t), text)
+        blueMatch = re.search(r'Blue\s+({})'.format(t), text)
         if not (redMatch and greenMatch and blueMatch):
             return None
         try:
@@ -267,16 +309,21 @@ class GammaCore:
                 timeout=5
             )
         except (FileNotFoundError, subprocess.TimeoutExpired, PermissionError):
-            return None
+            return None, False
         
-        match = re.search(r'Gamma:\s*([\d.]+):([\d.]+):([\d.]+)', result.stdout)
+        t = self._FLOAT_TOKEN
+        match = re.search(
+            r'Gamma:\s*({t}):({t}):({t})'.format(t=t),
+            result.stdout or '',
+        )
         if not match:
-            return None
+            return None, False
         try:
-            return {
+            raw = {
                 'red': float(match.group(1)),
                 'green': float(match.group(2)),
                 'blue': float(match.group(3))
             }
         except ValueError:
-            return None
+            return None, False
+        return self._finalize_read_gamma_dict(raw)

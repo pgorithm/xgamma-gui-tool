@@ -59,6 +59,7 @@ class InitializationWorker(QThread):
             'gamma': currentGamma,
             'warnings': warningMessages,
             'gamma_read_source': self.gammaCore.getLastGammaReadSource(),
+            'gamma_read_clamped': self.gammaCore.getLastGammaReadClamped(),
         })
 
 
@@ -515,6 +516,7 @@ class GammaMainWindow(QMainWindow):
             app.focusChanged.connect(self._onApplicationFocusChanged)
 
         self._init_read_source = None
+        self._init_read_clamped = False
 
     def retranslateUi(self):
         """Refresh all user-visible strings after QTranslator change (PRD 3.11.12 / TASK-016)."""
@@ -626,6 +628,7 @@ class GammaMainWindow(QMainWindow):
         self.warningMessages = results['warnings']
         read_source = results.get('gamma_read_source', 'default')
         self._init_read_source = read_source
+        self._init_read_clamped = bool(results.get('gamma_read_clamped', False))
 
         self.isUpdating = True
 
@@ -699,15 +702,25 @@ class GammaMainWindow(QMainWindow):
             if self.warningMessages
             else ''
         )
+        clamp_hint = (
+            self.tr(
+                ' Reported gamma was outside the supported range (0.01–5.0) and was limited.'
+            )
+            if getattr(self, '_init_read_clamped', False)
+            and read_source in ('xgamma', 'xrandr')
+            else ''
+        )
         if read_source == 'xgamma':
             self.statusBar.showMessage(
-                self.tr('Ready') + env_hint,
-                8000 if env_hint else 3000,
+                self.tr('Ready') + clamp_hint + env_hint,
+                12000 if (clamp_hint or env_hint) else 3000,
             )
         elif read_source == 'xrandr':
             self.statusBar.showMessage(
-                self.tr('Gamma from xrandr (xgamma output was not recognized).') + env_hint,
-                12000 if env_hint else 8000,
+                self.tr('Gamma from xrandr (xgamma output was not recognized).')
+                + clamp_hint
+                + env_hint,
+                14000 if (clamp_hint or env_hint) else 8000,
             )
         else:
             self.statusBar.showMessage(

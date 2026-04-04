@@ -112,6 +112,12 @@ _RU: dict[tuple[str, str], str] = {
     ("GammaMainWindow", "Ready"): "Готово",
     (
         "GammaMainWindow",
+        " Reported gamma was outside the supported range (0.01–5.0) and was limited.",
+    ): (
+        " Сообщённая гамма была вне допустимого диапазона (0,01–5,0) и ограничена."
+    ),
+    (
+        "GammaMainWindow",
         "Gamma from xrandr (xgamma output was not recognized).",
     ): "Гамма из xrandr (вывод xgamma не распознан).",
     (
