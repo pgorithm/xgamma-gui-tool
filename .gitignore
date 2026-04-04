@@ -6,8 +6,9 @@ Thumbs.db
 *.swp
 *.swo
 
-# Documentation
-docs/
+# Documentation (tracked exceptions below)
+docs/*
+!docs/build-deb.md
 
 # Node.js
 node_modules/
