@@ -289,6 +289,7 @@ class GammaMainWindow(QMainWindow):
         # `activeChannel` отслеживает, какой ползунок активно управляется с клавиатуры, 
         # что позволяет направленно изменять значения гаммы.
         self.widgetChannel = {}
+        self._channelLabels = {}
         self.warningMessages = []
         self._environmentBannerDismissed = False
         self.currentGamma = {'red': 1.0, 'green': 1.0, 'blue': 1.0}
@@ -370,12 +371,12 @@ class GammaMainWindow(QMainWindow):
             QSizePolicy.Minimum,
         )
         bannerLayout.addWidget(self._environmentBannerLabel, 1)
-        dismissBanner = QPushButton('Dismiss')
-        dismissBanner.setFlat(True)
-        dismissBanner.setCursor(Qt.PointingHandCursor)
-        dismissBanner.setToolTip('Hide this notice. The warning icon stays for details.')
-        dismissBanner.clicked.connect(self._dismissEnvironmentBanner)
-        bannerLayout.addWidget(dismissBanner, 0, Qt.AlignTop)
+        self._bannerDismissButton = QPushButton('Dismiss')
+        self._bannerDismissButton.setFlat(True)
+        self._bannerDismissButton.setCursor(Qt.PointingHandCursor)
+        self._bannerDismissButton.setToolTip('Hide this notice. The warning icon stays for details.')
+        self._bannerDismissButton.clicked.connect(self._dismissEnvironmentBanner)
+        bannerLayout.addWidget(self._bannerDismissButton, 0, Qt.AlignTop)
         mainLayout.addWidget(self._environmentBannerFrame)
         
         # Инициализируем генератор эталонного изображения, который будет использоваться для визуализации текущих значений гаммы.
@@ -384,6 +385,7 @@ class GammaMainWindow(QMainWindow):
         self.referenceLabel.setAlignment(Qt.AlignCenter)
         self.referenceLabel.setMinimumHeight(self.imageGenerator.calculatedHeight - 10)
         self.referenceLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.referenceLabel.setFocusPolicy(Qt.NoFocus)
         self.referenceLabel.setText('Reading display gamma…')
         mainLayout.addWidget(self.referenceLabel)
         
@@ -413,6 +415,14 @@ class GammaMainWindow(QMainWindow):
             channelLabel = QLabel(f'{label}:')
             channelLabel.setFixedWidth(maxLabelWidth)
             channelLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            # PRD 3.11.7 / 3.5: visible focus on a row (Tab/click label), not only the slider track.
+            channelLabel.setFocusPolicy(Qt.TabFocus | Qt.ClickFocus)
+            channelLabel.setToolTip(
+                'Focus this row (Tab or click the label), then use ←/→ to adjust gamma; '
+                'hold Shift for larger steps.'
+            )
+            self._channelLabels[channel] = channelLabel
+            self.widgetChannel[channelLabel] = channel
             sliderLayout.addWidget(channelLabel)
             
             # Вставляем ползунок, который позволяет пользователю изменять значение гаммы для соответствующего канала.
@@ -501,6 +511,37 @@ class GammaMainWindow(QMainWindow):
         app = QApplication.instance()
         if app:
             app.installEventFilter(self)
+            app.focusChanged.connect(self._onApplicationFocusChanged)
+
+    def _onApplicationFocusChanged(self, old, new):
+        """Keep activeChannel aligned with keyboard focus (PRD 3.5, 3.11.7)."""
+        if not self._gammaControlsReady:
+            return
+        if new is None or not self.isAncestorOf(new):
+            return
+        ch = self.widgetChannel.get(new)
+        if ch:
+            self._setActiveChannel(ch)
+        elif self._focusClearsKeyboardChannel(new):
+            self._clearActiveChannel()
+
+    def _focusClearsKeyboardChannel(self, w):
+        """Focus on chrome controls: arrows should not move gamma via the global filter."""
+        if w in (self.resetButton, self.saveButton, self.settingsButton):
+            return True
+        if w is self.warningIconLabel:
+            return True
+        if w is self._bannerDismissButton:
+            return True
+        return self._environmentBannerFrame.isAncestorOf(w)
+
+    def _updateKeyboardChannelHighlight(self):
+        """Show which row matches activeChannel for keyboard adjustment."""
+        for ch, lbl in self._channelLabels.items():
+            if self.activeChannel == ch:
+                lbl.setStyleSheet('font-weight: bold;')
+            else:
+                lbl.setStyleSheet('')
 
     def _onInitializationComplete(self, results):
         """
@@ -674,19 +715,18 @@ class GammaMainWindow(QMainWindow):
     def _setActiveChannel(self, channel):
         """Mark channel as keyboard-controlled."""
         self.activeChannel = channel
+        self._updateKeyboardChannelHighlight()
     
     def _clearActiveChannel(self):
         """Reset keyboard-controlled channel."""
         self.activeChannel = None
+        self._updateKeyboardChannelHighlight()
     
-    def _adjustActiveSlider(self, delta):
-        """Adjust active slider value by delta ticks."""
-        if not self._gammaControlsReady:
+    def _adjustChannelSlider(self, channel, delta):
+        """Adjust the given channel slider by delta ticks (1 tick = 0.001 gamma)."""
+        if not self._gammaControlsReady or not channel:
             return
-        if not self.activeChannel:
-            return
-        
-        slider = self.sliders[self.activeChannel]
+        slider = self.sliders[channel]
         newValue = max(slider.minimum(), min(slider.maximum(), slider.value() + delta))
         if newValue != slider.value():
             slider.setValue(newValue)
@@ -976,10 +1016,17 @@ class GammaMainWindow(QMainWindow):
                 self._setActiveChannel(channel)
             else:
                 self._clearActiveChannel()
-        elif event.type() == QEvent.KeyPress and self.activeChannel:
-            if event.key() in (Qt.Key_Left, Qt.Key_Right):
-                step = 10 if (event.modifiers() & Qt.ShiftModifier) else 1
-                delta = step if event.key() == Qt.Key_Right else -step
-                self._adjustActiveSlider(delta)
-                return True
+        elif event.type() == QEvent.KeyPress:
+            if event.key() not in (Qt.Key_Left, Qt.Key_Right):
+                return super().eventFilter(obj, event)
+            if not self._gammaControlsReady:
+                return super().eventFilter(obj, event)
+            ch = self.widgetChannel.get(obj)
+            if ch is None or self.activeChannel != ch:
+                # Let QSlider/QLineEdit handle keys, or ignore if focus is elsewhere.
+                return super().eventFilter(obj, event)
+            step = 10 if (event.modifiers() & Qt.ShiftModifier) else 1
+            delta = step if event.key() == Qt.Key_Right else -step
+            self._adjustChannelSlider(ch, delta)
+            return True
         return super().eventFilter(obj, event)
