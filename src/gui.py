@@ -299,7 +299,11 @@ class GammaMainWindow(QMainWindow):
         self.imageUpdateTimer.timeout.connect(self._updateReferenceImage)
         # Таймер `imageUpdateTimer` используется для отложенного обновления эталонного изображения,
         # чтобы избежать частых перерисовок и улучшить производительность GUI при быстрых изменениях гаммы.
-        
+
+        self._referencePixmapFull = None
+        self._referenceResizeTimer = QTimer()
+        self._referenceResizeTimer.setSingleShot(True)
+        self._referenceResizeTimer.timeout.connect(self._fitReferencePixmapToLabel)
     
         self.gammaApplyTimer = QTimer()
         self.gammaApplyTimer.setSingleShot(True)
@@ -380,7 +384,6 @@ class GammaMainWindow(QMainWindow):
         self.referenceLabel.setAlignment(Qt.AlignCenter)
         self.referenceLabel.setMinimumHeight(self.imageGenerator.calculatedHeight - 10)
         self.referenceLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.referenceLabel.setScaledContents(True)
         self.referenceLabel.setText('Reading display gamma…')
         mainLayout.addWidget(self.referenceLabel)
         
@@ -587,8 +590,26 @@ class GammaMainWindow(QMainWindow):
     """
         if gammaValues is None:
             gammaValues = self.currentGamma
-        pixmap = self.imageGenerator.generateImage(gammaValues)
-        self.referenceLabel.setPixmap(pixmap)
+        self._referencePixmapFull = self.imageGenerator.generateImage(gammaValues)
+        self._fitReferencePixmapToLabel()
+
+    def _scheduleReferencePixmapFit(self):
+        self._referenceResizeTimer.stop()
+        self._referenceResizeTimer.start(50)
+
+    def _fitReferencePixmapToLabel(self):
+        if self._referencePixmapFull is None or self._referencePixmapFull.isNull():
+            return
+        cr = self.referenceLabel.contentsRect()
+        w = max(1, cr.width())
+        h = max(1, cr.height())
+        scaled = self._referencePixmapFull.scaled(
+            w,
+            h,
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation,
+        )
+        self.referenceLabel.setPixmap(scaled)
 
     def _showGammaApplyFailure(self):
         """User-visible status when xgamma apply fails; full output kept in GammaCore."""
@@ -947,7 +968,9 @@ class GammaMainWindow(QMainWindow):
 
     def eventFilter(self, obj, event):
         """Handle global mouse and keyboard events for slider control."""
-        if event.type() == QEvent.MouseButtonPress:
+        if obj is self.referenceLabel and event.type() == QEvent.Resize:
+            self._scheduleReferencePixmapFit()
+        elif event.type() == QEvent.MouseButtonPress:
             channel = self.widgetChannel.get(obj)
             if channel:
                 self._setActiveChannel(channel)
