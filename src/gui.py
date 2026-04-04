@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSlider, QLabel, QPushButton, QLineEdit, QStatusBar,
     QSizePolicy, QApplication, QDialog,
-    QDialogButtonBox, QFrame
+    QDialogButtonBox, QFrame, QComboBox,
 )
 from PyQt5.QtCore import Qt, QEvent, QSize, QTimer, QRectF, QCoreApplication
 from PyQt5.QtGui import (
@@ -26,6 +26,12 @@ from .reference_image import ReferenceImageGenerator
 from .config_manager import ConfigManager
 from .version_info import __version__ as APP_VERSION
 from PyQt5.QtCore import QThread, pyqtSignal
+from .i18n import (
+    apply_ui_language,
+    iter_ui_language_choices,
+    read_ui_language_setting,
+    write_ui_language_setting,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -84,40 +90,58 @@ def _create_info_icon():
 class AboutDialog(QDialog):
     """Modal about box: app name, version from version_info, project link."""
 
+    _GH_URL = 'https://github.com/pgorithm/xgamma_gui_tool'
+
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(self.tr('About xgamma GUI Tool'))
         self.setModal(True)
 
         layout = QVBoxLayout(self)
-        title = QLabel(
+        self._title_label = QLabel()
+        layout.addWidget(self._title_label)
+        self._ver_label = QLabel()
+        layout.addWidget(self._ver_label)
+        self._link_label = QLabel()
+        self._link_label.setOpenExternalLinks(True)
+        layout.addWidget(self._link_label)
+        self._author_label = QLabel()
+        layout.addWidget(self._author_label)
+
+        self._tips_heading = QLabel()
+        tips_font = self._tips_heading.font()
+        tips_font.setBold(True)
+        self._tips_heading.setFont(tips_font)
+        layout.addWidget(self._tips_heading)
+        self._tips_body = QLabel()
+        self._tips_body.setWordWrap(True)
+        layout.addWidget(self._tips_body)
+
+        self._button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        self._button_box.accepted.connect(self.accept)
+        layout.addWidget(self._button_box)
+
+        self.retranslateUi()
+
+    def retranslateUi(self):
+        self.setWindowTitle(self.tr('About xgamma GUI Tool'))
+        self._title_label.setText(
             '<h3 style="margin:0">{}</h3>'.format(html.escape(self.tr('xgamma GUI Tool')))
         )
-        layout.addWidget(title)
-        ver = QLabel(
+        self._ver_label.setText(
             '<b>{}</b> {}'.format(
                 html.escape(self.tr('Version:')),
                 html.escape(APP_VERSION),
             )
         )
-        layout.addWidget(ver)
-        gh_url = 'https://github.com/pgorithm/xgamma_gui_tool'
-        link = QLabel(
+        self._link_label.setText(
             '<a href="{}">{}</a>'.format(
-                html.escape(gh_url),
+                html.escape(self._GH_URL),
                 html.escape(self.tr('Project on GitHub')),
             )
         )
-        link.setOpenExternalLinks(True)
-        layout.addWidget(link)
-        layout.addWidget(QLabel(self.tr('Author: pgorithm')))
-
-        tips_heading = QLabel(self.tr('Calibration tips'))
-        tips_font = tips_heading.font()
-        tips_font.setBold(True)
-        tips_heading.setFont(tips_font)
-        layout.addWidget(tips_heading)
-        tips_body = QLabel(
+        self._author_label.setText(self.tr('Author: pgorithm'))
+        self._tips_heading.setText(self.tr('Calibration tips'))
+        self._tips_body.setText(
             self.tr(
                 'A gamma of 1.0 on a channel is neutral—it does not brighten or darken that primary. '
                 'Adjust Red, Green, and Blue when you need to fix a color cast or balance white; '
@@ -125,12 +149,9 @@ class AboutDialog(QDialog):
                 'Small moves and the preview pattern are safer than pushing sliders to extremes.'
             )
         )
-        tips_body.setWordWrap(True)
-        layout.addWidget(tips_body)
-
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok)
-        buttons.accepted.connect(self.accept)
-        layout.addWidget(buttons)
+        ok_btn = self._button_box.button(QDialogButtonBox.Ok)
+        if ok_btn is not None:
+            ok_btn.setText(self.tr('OK'))
 
 
 class SettingsDialog(QDialog):
@@ -138,23 +159,88 @@ class SettingsDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(self.tr('Settings'))
+        self._main_window = parent
         self.setModal(True)
-        # Минимальный размер окна настроек
-        self.setMinimumSize(150, 150)
-        
+        self.setMinimumSize(320, 200)
+
         mainLayout = QVBoxLayout(self)
         mainLayout.setSpacing(15)
 
-        about_button = QPushButton(_create_info_icon(), self.tr('About'), self)
-        about_button.setIconSize(QSize(22, 22))
-        about_button.setToolTip(self.tr('Open version and project information'))
-        about_button.clicked.connect(lambda: AboutDialog(self).exec_())
-        mainLayout.addWidget(about_button)
+        lang_row = QHBoxLayout()
+        self._language_label = QLabel()
+        lang_row.addWidget(self._language_label)
+        self._language_combo = QComboBox()
+        self._language_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        lang_row.addWidget(self._language_combo, 1)
+        mainLayout.addLayout(lang_row)
 
-        buttonBox = QDialogButtonBox(QDialogButtonBox.Close)
-        buttonBox.rejected.connect(self.reject)
-        mainLayout.addWidget(buttonBox)
+        self._about_button = QPushButton(_create_info_icon(), '', self)
+        self._about_button.setIconSize(QSize(22, 22))
+        self._about_button.clicked.connect(lambda: AboutDialog(self).exec_())
+        mainLayout.addWidget(self._about_button)
+
+        self._button_box = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Apply | QDialogButtonBox.Cancel
+        )
+        self._button_box.button(QDialogButtonBox.Ok).clicked.connect(self._on_ok_clicked)
+        self._button_box.button(QDialogButtonBox.Apply).clicked.connect(self._on_apply_clicked)
+        self._button_box.rejected.connect(self._on_cancel_clicked)
+        mainLayout.addWidget(self._button_box)
+
+        self.retranslateUi()
+
+    def retranslateUi(self):
+        self.setWindowTitle(self.tr('Settings'))
+        self._language_label.setText(self.tr('Language:'))
+        self._about_button.setText(self.tr('About'))
+        self._about_button.setToolTip(self.tr('Open version and project information'))
+        ok_btn = self._button_box.button(QDialogButtonBox.Ok)
+        apply_btn = self._button_box.button(QDialogButtonBox.Apply)
+        cancel_btn = self._button_box.button(QDialogButtonBox.Cancel)
+        if ok_btn is not None:
+            ok_btn.setText(self.tr('OK'))
+        if apply_btn is not None:
+            apply_btn.setText(self.tr('Apply'))
+        if cancel_btn is not None:
+            cancel_btn.setText(self.tr('Cancel'))
+        preserved = self._language_combo.currentData()
+        self._populate_language_combo(select_id=preserved)
+
+    def _populate_language_combo(self, select_id=None):
+        if select_id is None:
+            select_id = read_ui_language_setting()
+        self._language_combo.blockSignals(True)
+        self._language_combo.clear()
+        idx = 0
+        for i, (lang_id, label) in enumerate(iter_ui_language_choices()):
+            self._language_combo.addItem(label, lang_id)
+            if lang_id == select_id:
+                idx = i
+        self._language_combo.setCurrentIndex(idx)
+        self._language_combo.blockSignals(False)
+
+    def _selected_language_id(self):
+        data = self._language_combo.currentData()
+        return data if data is not None else read_ui_language_setting()
+
+    def _persist_and_apply_language(self):
+        write_ui_language_setting(self._selected_language_id())
+        app = QApplication.instance()
+        apply_ui_language(app, self._main_window)
+
+    def _on_ok_clicked(self):
+        self._persist_and_apply_language()
+        self.accept()
+
+    def _on_apply_clicked(self):
+        self._persist_and_apply_language()
+
+    def _on_cancel_clicked(self):
+        # Сначала выравниваем комбобокс с диском, иначе retranslateUi сохранит несохранённый выбор.
+        self._populate_language_combo(select_id=read_ui_language_setting())
+        app = QApplication.instance()
+        apply_ui_language(app, self._main_window)
+        self.reject()
 
 
 class GammaMainWindow(QMainWindow):

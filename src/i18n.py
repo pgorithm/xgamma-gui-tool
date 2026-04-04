@@ -175,6 +175,11 @@ _RU: dict[tuple[str, str], str] = {
         "SettingsDialog",
         "Open version and project information",
     ): "Открыть версию и сведения о проекте",
+    ("SettingsDialog", "Language:"): "Язык интерфейса:",
+    ("SettingsDialog", "OK"): "ОК",
+    ("SettingsDialog", "Apply"): "Применить",
+    ("SettingsDialog", "Cancel"): "Отмена",
+    ("AboutDialog", "OK"): "ОК",
     ("i18n", "As in system"): "Как в системе",
     ("i18n", "English"): "Английский",
     ("i18n", "Russian"): "Русский",
@@ -278,6 +283,13 @@ def apply_ui_language(app, main_window) -> None:
     reinstall_translators(app)
     if main_window is not None:
         main_window.retranslateUi()
+    # TASK-017: same policy for any open dialog — instant retranslate (no «close and reopen»).
+    for w in app.topLevelWidgets():
+        if w is main_window:
+            continue
+        fn = getattr(w, "retranslateUi", None)
+        if callable(fn):
+            fn()
 
 
 def _label_for_extra_qm(path: Path) -> str:
