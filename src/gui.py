@@ -13,7 +13,7 @@ from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSlider, QLabel, QPushButton, QLineEdit, QStatusBar,
     QSizePolicy, QApplication, QDialog,
-    QDialogButtonBox, QCheckBox, QFrame
+    QDialogButtonBox, QFrame
 )
 from PyQt5.QtCore import Qt, QEvent, QSize, QTimer, QRectF, QCoreApplication
 from PyQt5.QtGui import (
@@ -55,81 +55,6 @@ class InitializationWorker(QThread):
             'gamma_read_source': self.gammaCore.getLastGammaReadSource(),
         })
 
-
-class SettingsButton(QWidget):
-    """Кнопка с иконкой и текстом."""
-    def __init__(self, icon, text, parent=None):
-        super().__init__(parent)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        
-        self.iconLabel = QLabel()
-        if icon:
-            self.iconLabel.setPixmap(icon.pixmap(22, 22))
-        self.label = QLabel(text)
-        
-        layout.addWidget(self.iconLabel)
-        layout.addWidget(self.label)
-        layout.addStretch()
-
-class SettingsBoolean(QWidget):
-    """Галочка с подписью."""
-    def __init__(self, text, checked=False, parent=None):
-        super().__init__(parent)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        self.checkbox = QCheckBox(text)
-        self.checkbox.setChecked(checked)
-        layout.addWidget(self.checkbox)
-
-class SettingsTextbox(QWidget):
-    """Подпись и поле для ввода текста."""
-    def __init__(self, text, value="", parent=None):
-        super().__init__(parent)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        self.label = QLabel(text)
-        self.textbox = QLineEdit(value)
-        layout.addWidget(self.label)
-        layout.addWidget(self.textbox)
-
-class SettingsBooleanTextbox(QWidget):
-    """Комбинация галочки, подписи и поля для ввода."""
-    def __init__(self, checkbox_text, checked=False, textbox_value="", parent=None):
-        super().__init__(parent)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        self.checkbox = QCheckBox(checkbox_text)
-        self.checkbox.setChecked(checked)
-        self.textbox = QLineEdit(textbox_value)
-        self.textbox.setEnabled(checked)
-        self.checkbox.toggled.connect(self.textbox.setEnabled)
-        
-        layout.addWidget(self.checkbox)
-        layout.addStretch()
-        layout.addWidget(self.textbox)
-
-class SettingsSlider(QWidget):
-    """Слайдер с подписью и полем для значения."""
-    def __init__(self, text, value=0, min_val=0, max_val=100, parent=None):
-        super().__init__(parent)
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        
-        top_layout = QHBoxLayout()
-        self.label = QLabel(text)
-        self.value_label = QLabel(str(value))
-        top_layout.addWidget(self.label)
-        top_layout.addStretch()
-        top_layout.addWidget(self.value_label)
-        
-        self.slider = QSlider(Qt.Horizontal)
-        self.slider.setRange(min_val, max_val)
-        self.slider.setValue(value)
-        self.slider.valueChanged.connect(lambda v: self.value_label.setText(str(v)))
-        
-        main_layout.addLayout(top_layout)
-        main_layout.addWidget(self.slider)
 
 def _create_info_icon():
     """Создает иконку 'i' в синем круге."""

@@ -239,7 +239,7 @@
         "Шаг 3: smoke-тест GUI под X11"
       ],
       "dependencies": [],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-014",
