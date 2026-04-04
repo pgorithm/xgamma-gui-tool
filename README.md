@@ -43,16 +43,19 @@ python3 main.py
 ### 1. Install xgamma
 
 **Ubuntu/Debian:**
+
 ```bash
 sudo apt-get install x11-xserver-utils
 ```
 
 **Fedora:**
+
 ```bash
 sudo dnf install xorg-x11-server-utils
 ```
 
 **Arch Linux:**
+
 ```bash
 sudo pacman -S xorg-xgamma
 ```
@@ -64,6 +67,7 @@ pip install -r requirements.txt
 ```
 
 Or using pip3:
+
 ```bash
 pip3 install -r requirements.txt
 ```
@@ -79,11 +83,13 @@ To maintain `.ts` / `.qm` files, see `src/translations/README.txt`.
 ### Running the application
 
 From the project root directory:
+
 ```bash
 python main.py
 ```
 
 Or:
+
 ```bash
 python3 main.py
 ```

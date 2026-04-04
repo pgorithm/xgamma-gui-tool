@@ -23,6 +23,10 @@ __pycache__/
 venv/
 .env
 
+# Security audit: local pytest and PoC/exploit scripts (not versioned)
+tests/security/
+tests/exploits/
+
 # Build artifacts
 build/
 out/
