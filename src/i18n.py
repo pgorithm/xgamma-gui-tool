@@ -58,25 +58,41 @@ _RU: dict[tuple[str, str], str] = {
     ("GammaMainWindow", "All"): "Все",
     (
         "GammaMainWindow",
+        "1.0 means no change for this channel. "
+        "Use Red, Green, and Blue to correct tint and white balance; use All to apply "
+        "the same factor to every channel. "
         "Focus this row (Tab or click the label), then use ←/→ to adjust gamma; "
         "hold Shift for larger steps.",
     ): (
+        "1.0 означает отсутствие изменений для этого канала. "
+        "Используйте красный, зелёный и синий для исправления оттенка и баланса белого; "
+        "«Все» — чтобы применить один коэффициент ко всем каналам. "
         "Выберите строку (Tab или клик по подписи), затем ←/→ для изменения гаммы; "
         "удерживайте Shift для большего шага."
     ),
     (
         "GammaMainWindow",
-        "While Red, Green, and Blue differ, this row shows their arithmetic average. "
-        "Moving the All slider sets all three channels to the same gamma value.",
+        "1.0 neutral; R/G/B for cast, All to scale all channels.",
     ): (
-        "Пока красный, зелёный и синий различаются, здесь показано среднее арифметическое. "
-        "Перемещение ползунка «Все» выставляет одинаковую гамму для всех трёх каналов."
+        "1.0 — нейтрально; R/G/B для оттенка, «Все» для масштаба всех каналов."
     ),
     (
         "GammaMainWindow",
-        "Average when R/G/B differ; dragging All sets all three channels equal.",
+        "When Red, Green, and Blue match, 1.0 is neutral for all. "
+        "While they differ, this row shows their arithmetic average. "
+        "Moving the All slider sets all three channels to the same gamma value. "
+        "Focus this row (Tab or click the label), then use ←/→; hold Shift for larger steps.",
     ): (
-        "Среднее при различии R/G/B; перетаскивание «Все» выравнивает все три канала."
+        "Когда красный, зелёный и синий совпадают, 1.0 нейтрально для всех. "
+        "Пока они различаются, здесь показано среднее арифметическое. "
+        "Перемещение ползунка «Все» выставляет одинаковую гамму для всех трёх каналов. "
+        "Выберите строку (Tab или клик по подписи), затем ←/→; удерживайте Shift для большего шага."
+    ),
+    (
+        "GammaMainWindow",
+        "1.0 when matched; average when R/G/B differ; All drag equalizes channels.",
+    ): (
+        "1.0 при совпадении; среднее при различии R/G/B; перетаскивание «Все» выравнивает каналы."
     ),
     ("GammaMainWindow", "Reset"): "Сброс",
     ("GammaMainWindow", "Apply"): "Применить",
@@ -131,6 +147,19 @@ _RU: dict[tuple[str, str], str] = {
     ("AboutDialog", "Version:"): "Версия:",
     ("AboutDialog", "Project on GitHub"): "Проект на GitHub",
     ("AboutDialog", "Author: pgorithm"): "Автор: pgorithm",
+    ("AboutDialog", "Calibration tips"): "Советы по калибровке",
+    (
+        "AboutDialog",
+        "A gamma of 1.0 on a channel is neutral—it does not brighten or darken that primary. "
+        "Adjust Red, Green, and Blue when you need to fix a color cast or balance white; "
+        "use All when you want one factor applied to every channel. "
+        "Small moves and the preview pattern are safer than pushing sliders to extremes.",
+    ): (
+        "Нейтральная гамма 1.0 по каналу не осветляет и не затемняет этот первичный цвет. "
+        "Настраивайте красный, зелёный и синий при цветовом сдвиге или балансе белого; "
+        "используйте «Все», когда нужен один множитель для каждого канала. "
+        "Небольшие шаги и тестовый шаблон безопаснее, чем увод ползунков в крайние значения."
+    ),
     ("SettingsDialog", "Settings"): "Настройки",
     ("SettingsDialog", "About"): "О программе",
     (

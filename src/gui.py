@@ -187,6 +187,22 @@ class AboutDialog(QDialog):
         layout.addWidget(link)
         layout.addWidget(QLabel(self.tr('Author: pgorithm')))
 
+        tips_heading = QLabel(self.tr('Calibration tips'))
+        tips_font = tips_heading.font()
+        tips_font.setBold(True)
+        tips_heading.setFont(tips_font)
+        layout.addWidget(tips_heading)
+        tips_body = QLabel(
+            self.tr(
+                'A gamma of 1.0 on a channel is neutral—it does not brighten or darken that primary. '
+                'Adjust Red, Green, and Blue when you need to fix a color cast or balance white; '
+                'use All when you want one factor applied to every channel. '
+                'Small moves and the preview pattern are safer than pushing sliders to extremes.'
+            )
+        )
+        tips_body.setWordWrap(True)
+        layout.addWidget(tips_body)
+
         buttons = QDialogButtonBox(QDialogButtonBox.Ok)
         buttons.accepted.connect(self.accept)
         layout.addWidget(buttons)
@@ -367,12 +383,6 @@ class GammaMainWindow(QMainWindow):
             channelLabel.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
             # PRD 3.11.7 / 3.5: visible focus on a row (Tab/click label), not only the slider track.
             channelLabel.setFocusPolicy(Qt.TabFocus | Qt.ClickFocus)
-            channelLabel.setToolTip(
-                self.tr(
-                    'Focus this row (Tab or click the label), then use ←/→ to adjust gamma; '
-                    'hold Shift for larger steps.'
-                )
-            )
             self._channelLabels[channel] = channelLabel
             self.widgetChannel[channelLabel] = channel
             sliderLayout.addWidget(channelLabel)
@@ -420,14 +430,34 @@ class GammaMainWindow(QMainWindow):
             self.valueInputs[channel] = valueInput
             sliderLayout.addWidget(valueInput)
 
-            if channel == 'all':
-                # PRD 3.11.4 / 5.1: All row mean vs equalize
+            if channel in ('red', 'green', 'blue'):
+                # PRD 3.11.10: channel hygiene + keyboard (3.11.7 / 3.5)
+                _rgb_tip = self.tr(
+                    '1.0 means no change for this channel. '
+                    'Use Red, Green, and Blue to correct tint and white balance; use All to apply '
+                    'the same factor to every channel. '
+                    'Focus this row (Tab or click the label), then use ←/→ to adjust gamma; '
+                    'hold Shift for larger steps.'
+                )
+                _rgb_status = self.tr(
+                    '1.0 neutral; R/G/B for cast, All to scale all channels.'
+                )
+                channelLabel.setToolTip(_rgb_tip)
+                channelLabel.setStatusTip(_rgb_status)
+                slider.setToolTip(_rgb_tip)
+                slider.setStatusTip(_rgb_status)
+                valueInput.setToolTip(_rgb_tip)
+                valueInput.setStatusTip(_rgb_status)
+            elif channel == 'all':
+                # PRD 3.11.4 / 5.1: All row mean vs equalize; 3.11.10 / 3.11.7
                 _all_tip = self.tr(
-                    'While Red, Green, and Blue differ, this row shows their arithmetic average. '
-                    'Moving the All slider sets all three channels to the same gamma value.'
+                    'When Red, Green, and Blue match, 1.0 is neutral for all. '
+                    'While they differ, this row shows their arithmetic average. '
+                    'Moving the All slider sets all three channels to the same gamma value. '
+                    'Focus this row (Tab or click the label), then use ←/→; hold Shift for larger steps.'
                 )
                 _all_status = self.tr(
-                    'Average when R/G/B differ; dragging All sets all three channels equal.'
+                    '1.0 when matched; average when R/G/B differ; All drag equalizes channels.'
                 )
                 channelLabel.setToolTip(_all_tip)
                 channelLabel.setStatusTip(_all_status)
