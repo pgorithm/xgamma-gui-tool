@@ -5,10 +5,12 @@ Handles dependency checks and application initialization.
 
 import logging
 import sys
+from PyQt5.QtCore import QCoreApplication
 from PyQt5.QtWidgets import QApplication, QMessageBox
 from .gamma_core import GammaCore
 from .config_manager import ConfigManager
 from .gui import GammaMainWindow
+from .i18n import install_translators
 
 
 def checkDependencies():
@@ -21,16 +23,17 @@ def checkDependencies():
     gammaCore = GammaCore()
     
     if not gammaCore.isXgammaAvailable():
-        return False, (
+        return False, QCoreApplication.translate(
+            "main",
             "xgamma is not installed or not found in PATH.\n\n"
             "Please install xgamma using one of the following commands:\n\n"
             "Ubuntu/Debian: sudo apt-get install x11-xserver-utils\n"
             "Fedora: sudo dnf install xorg-x11-server-utils\n"
             "Arch Linux: sudo pacman -S xorg-xgamma\n\n"
-            "After installation, please restart the application."
+            "After installation, please restart the application.",
         )
-    
-    return True, "Ok"
+
+    return True, QCoreApplication.translate("main", "Ok")
 
 
 def main():
@@ -44,15 +47,18 @@ def main():
     # Создаем QApplication
     app = QApplication(sys.argv)
     app.setApplicationName('xgamma GUI Tool')
-    
+    install_translators(app)
+
     # Проверяем зависимости (xgamma)
     isAvailable, errorMessage = checkDependencies()
     if not isAvailable:
         # Показываем сообщение об ошибке и выходим
         msgBox = QMessageBox()
         msgBox.setIcon(QMessageBox.Warning)
-        msgBox.setWindowTitle('xgamma GUI Tool - Missing Dependency')
-        msgBox.setText('xgamma Not Found')
+        msgBox.setWindowTitle(
+            QCoreApplication.translate("main", "xgamma GUI Tool - Missing Dependency")
+        )
+        msgBox.setText(QCoreApplication.translate("main", "xgamma Not Found"))
         msgBox.setInformativeText(errorMessage)
         msgBox.setStandardButtons(QMessageBox.Ok)
         msgBox.exec_()

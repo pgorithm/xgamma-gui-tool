@@ -68,6 +68,12 @@ Or using pip3:
 pip3 install -r requirements.txt
 ```
 
+## Translations (i18n)
+
+The app uses Qt `QTranslator`. With a Russian system locale or `LANG=ru_RU.UTF-8`, main window strings, dialogs, and environment warnings are shown in Russian (embedded catalog, or `src/translations/xgamma_gui_ru.qm` if you add one).
+
+To maintain `.ts` / `.qm` files, see `src/translations/README.txt`.
+
 ## Usage
 
 ### Running the application

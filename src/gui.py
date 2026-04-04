@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import (
     QSizePolicy, QApplication, QDialog,
     QDialogButtonBox, QCheckBox, QFrame
 )
-from PyQt5.QtCore import Qt, QEvent, QSize, QTimer, QRectF
+from PyQt5.QtCore import Qt, QEvent, QSize, QTimer, QRectF, QCoreApplication
 from PyQt5.QtGui import (
     QPixmap, QFontMetrics, QPainter, QPen, QBrush,
     QColor, QIcon, QDoubleValidator
@@ -28,15 +28,6 @@ from .version_info import __version__ as APP_VERSION
 from PyQt5.QtCore import QThread, pyqtSignal
 
 _logger = logging.getLogger(__name__)
-
-# PRD 3.11.4 / 5.1: All row shows mean of R/G/B when they differ; moving All equalizes channels.
-_ALL_ROW_TOOLTIP = (
-    'While Red, Green, and Blue differ, this row shows their arithmetic average. '
-    'Moving the All slider sets all three channels to the same gamma value.'
-)
-_ALL_ROW_STATUS_TIP = (
-    'Average when R/G/B differ; dragging All sets all three channels equal.'
-)
 
 
 class InitializationWorker(QThread):
@@ -170,19 +161,31 @@ class AboutDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle('About xgamma GUI Tool')
+        self.setWindowTitle(self.tr('About xgamma GUI Tool'))
         self.setModal(True)
 
         layout = QVBoxLayout(self)
-        title = QLabel('<h3 style="margin:0">xgamma GUI Tool</h3>')
+        title = QLabel(
+            '<h3 style="margin:0">{}</h3>'.format(html.escape(self.tr('xgamma GUI Tool')))
+        )
         layout.addWidget(title)
-        ver = QLabel(f'<b>Version:</b> {html.escape(APP_VERSION)}')
+        ver = QLabel(
+            '<b>{}</b> {}'.format(
+                html.escape(self.tr('Version:')),
+                html.escape(APP_VERSION),
+            )
+        )
         layout.addWidget(ver)
         gh_url = 'https://github.com/pgorithm/xgamma_gui_tool'
-        link = QLabel(f'<a href="{html.escape(gh_url)}">Project on GitHub</a>')
+        link = QLabel(
+            '<a href="{}">{}</a>'.format(
+                html.escape(gh_url),
+                html.escape(self.tr('Project on GitHub')),
+            )
+        )
         link.setOpenExternalLinks(True)
         layout.addWidget(link)
-        layout.addWidget(QLabel('Author: pgorithm'))
+        layout.addWidget(QLabel(self.tr('Author: pgorithm')))
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok)
         buttons.accepted.connect(self.accept)
@@ -194,7 +197,7 @@ class SettingsDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle('Settings')
+        self.setWindowTitle(self.tr('Settings'))
         self.setModal(True)
         # Минимальный размер окна настроек
         self.setMinimumSize(150, 150)
@@ -202,9 +205,9 @@ class SettingsDialog(QDialog):
         mainLayout = QVBoxLayout(self)
         mainLayout.setSpacing(15)
 
-        about_button = QPushButton(_create_info_icon(), 'About', self)
+        about_button = QPushButton(_create_info_icon(), self.tr('About'), self)
         about_button.setIconSize(QSize(22, 22))
-        about_button.setToolTip('Open version and project information')
+        about_button.setToolTip(self.tr('Open version and project information'))
         about_button.clicked.connect(lambda: AboutDialog(self).exec_())
         mainLayout.addWidget(about_button)
 
@@ -260,7 +263,7 @@ class GammaMainWindow(QMainWindow):
         # `pendingGamma` хранит значения гаммы, которые ожидают применения таймером,
         # позволяя накапливать изменения перед их фактическим использованием.
           
-        self.setWindowTitle('xgamma GUI Tool')
+        self.setWindowTitle(self.tr('xgamma GUI Tool'))
         self.setMinimumSize(600, 650)
         
         # Создаем центральный виджет и компоновку, чтобы организовать основные элементы интерфейса в едином окне.
@@ -275,7 +278,7 @@ class GammaMainWindow(QMainWindow):
         topPanel.addStretch()
         self.settingsButton = self._buildIconButton(
             self._createGearIcon(),
-            'Settings',
+            self.tr('Settings'),
             self._openSettingsDialog
         )
         self.warningIconLabel = QLabel()
@@ -316,10 +319,12 @@ class GammaMainWindow(QMainWindow):
             QSizePolicy.Minimum,
         )
         bannerLayout.addWidget(self._environmentBannerLabel, 1)
-        self._bannerDismissButton = QPushButton('Dismiss')
+        self._bannerDismissButton = QPushButton(self.tr('Dismiss'))
         self._bannerDismissButton.setFlat(True)
         self._bannerDismissButton.setCursor(Qt.PointingHandCursor)
-        self._bannerDismissButton.setToolTip('Hide this notice. The warning icon stays for details.')
+        self._bannerDismissButton.setToolTip(
+            self.tr('Hide this notice. The warning icon stays for details.')
+        )
         self._bannerDismissButton.clicked.connect(self._dismissEnvironmentBanner)
         bannerLayout.addWidget(self._bannerDismissButton, 0, Qt.AlignTop)
         mainLayout.addWidget(self._environmentBannerFrame)
@@ -331,7 +336,7 @@ class GammaMainWindow(QMainWindow):
         self.referenceLabel.setMinimumHeight(self.imageGenerator.calculatedHeight - 10)
         self.referenceLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.referenceLabel.setFocusPolicy(Qt.NoFocus)
-        self.referenceLabel.setText('Reading display gamma…')
+        self.referenceLabel.setText(self.tr('Reading display gamma…'))
         mainLayout.addWidget(self.referenceLabel)
         
         # Инициализируем ползунки и поля ввода значений для каждого цветового канала, чтобы пользователь мог интерактивно управлять гаммой.
@@ -339,10 +344,10 @@ class GammaMainWindow(QMainWindow):
         self.valueInputs = {}
         
         channels = [
-            ('red', 'Red'),
-            ('green', 'Green'),
-            ('blue', 'Blue'),
-            ('all', 'All'),
+            ('red', self.tr('Red')),
+            ('green', self.tr('Green')),
+            ('blue', self.tr('Blue')),
+            ('all', self.tr('All')),
         ]
         fontMetrics = QFontMetrics(self.font())
         maxLabelWidth = max(fontMetrics.width(f'{label}:') for _, label in channels) + 10
@@ -363,8 +368,10 @@ class GammaMainWindow(QMainWindow):
             # PRD 3.11.7 / 3.5: visible focus on a row (Tab/click label), not only the slider track.
             channelLabel.setFocusPolicy(Qt.TabFocus | Qt.ClickFocus)
             channelLabel.setToolTip(
-                'Focus this row (Tab or click the label), then use ←/→ to adjust gamma; '
-                'hold Shift for larger steps.'
+                self.tr(
+                    'Focus this row (Tab or click the label), then use ←/→ to adjust gamma; '
+                    'hold Shift for larger steps.'
+                )
             )
             self._channelLabels[channel] = channelLabel
             self.widgetChannel[channelLabel] = channel
@@ -414,12 +421,20 @@ class GammaMainWindow(QMainWindow):
             sliderLayout.addWidget(valueInput)
 
             if channel == 'all':
-                channelLabel.setToolTip(_ALL_ROW_TOOLTIP)
-                channelLabel.setStatusTip(_ALL_ROW_STATUS_TIP)
-                slider.setToolTip(_ALL_ROW_TOOLTIP)
-                slider.setStatusTip(_ALL_ROW_STATUS_TIP)
-                valueInput.setToolTip(_ALL_ROW_TOOLTIP)
-                valueInput.setStatusTip(_ALL_ROW_STATUS_TIP)
+                # PRD 3.11.4 / 5.1: All row mean vs equalize
+                _all_tip = self.tr(
+                    'While Red, Green, and Blue differ, this row shows their arithmetic average. '
+                    'Moving the All slider sets all three channels to the same gamma value.'
+                )
+                _all_status = self.tr(
+                    'Average when R/G/B differ; dragging All sets all three channels equal.'
+                )
+                channelLabel.setToolTip(_all_tip)
+                channelLabel.setStatusTip(_all_status)
+                slider.setToolTip(_all_tip)
+                slider.setStatusTip(_all_status)
+                valueInput.setToolTip(_all_tip)
+                valueInput.setStatusTip(_all_status)
             
             mainLayout.addLayout(sliderLayout)
         
@@ -427,14 +442,14 @@ class GammaMainWindow(QMainWindow):
         buttonLayout = QHBoxLayout()
         buttonLayout.addStretch()
         
-        self.resetButton = QPushButton('Reset')
+        self.resetButton = QPushButton(self.tr('Reset'))
         self.resetButton.setEnabled(False)
         self.resetButton.clicked.connect(self._onResetClicked)
         buttonLayout.addWidget(self.resetButton)
         
         buttonLayout.addStretch()
         
-        self.saveButton = QPushButton('Apply')
+        self.saveButton = QPushButton(self.tr('Apply'))
         self.saveButton.setEnabled(False)
         self.saveButton.clicked.connect(self._onSaveClicked)
         buttonLayout.addWidget(self.saveButton)
@@ -447,7 +462,7 @@ class GammaMainWindow(QMainWindow):
         # и возможных предупреждениях.
         self.statusBar = QStatusBar()
         self.setStatusBar(self.statusBar)
-        self.statusBar.showMessage('Loading initial settings…')
+        self.statusBar.showMessage(self.tr('Loading initial settings…'))
 
         self.worker = InitializationWorker(self.gammaCore)
         self.worker.finished.connect(self._onInitializationComplete)
@@ -537,15 +552,18 @@ class GammaMainWindow(QMainWindow):
         self._updateEnvironmentBanner()
         raw_diag = self.gammaCore.getLastRawOutput().strip()
         env_hint = (
-            ' Environment may limit gamma — see the notice above.'
+            self.tr(' Environment may limit gamma — see the notice above.')
             if self.warningMessages
             else ''
         )
         if read_source == 'xgamma':
-            self.statusBar.showMessage('Ready{}'.format(env_hint), 8000 if env_hint else 3000)
+            self.statusBar.showMessage(
+                self.tr('Ready') + env_hint,
+                8000 if env_hint else 3000,
+            )
         elif read_source == 'xrandr':
             self.statusBar.showMessage(
-                'Gamma from xrandr (xgamma output was not recognized).{}'.format(env_hint),
+                self.tr('Gamma from xrandr (xgamma output was not recognized).') + env_hint,
                 12000 if env_hint else 8000,
             )
             if raw_diag:
@@ -555,8 +573,11 @@ class GammaMainWindow(QMainWindow):
                 )
         else:
             self.statusBar.showMessage(
-                'Could not read display gamma; defaults (1.0) shown. '
-                'Check DISPLAY and xgamma.{}'.format(env_hint),
+                self.tr(
+                    'Could not read display gamma; defaults (1.0) shown. '
+                    'Check DISPLAY and xgamma.'
+                )
+                + env_hint,
                 14000 if env_hint else 10000,
             )
             if raw_diag:
@@ -600,7 +621,7 @@ class GammaMainWindow(QMainWindow):
     def _showGammaApplyFailure(self):
         """User-visible status when xgamma apply fails; full output kept in GammaCore."""
         detail = self.gammaCore.getLastApplyRawOutput().strip()
-        base = 'Could not apply gamma to the display.'
+        base = self.tr('Could not apply gamma to the display.')
         if detail:
             one_line = ' '.join(detail.split())
             if len(one_line) > 180:
@@ -809,7 +830,9 @@ class GammaMainWindow(QMainWindow):
         self.warningIconLabel.setVisible(hasWarnings)
         if hasWarnings:
             self.warningIconLabel.setPixmap(self._createWarningIcon())
-            tooltip = '\n'.join(self.warningMessages)
+            tooltip = '\n'.join(
+                QCoreApplication.translate('environment', m) for m in self.warningMessages
+            )
             self.warningIconLabel.setToolTip(tooltip)
         else:
             self.warningIconLabel.setToolTip('')
@@ -819,9 +842,12 @@ class GammaMainWindow(QMainWindow):
         if not self.warningMessages or self._environmentBannerDismissed:
             self._environmentBannerFrame.setVisible(False)
             return
-        body = '<br/>'.join(html.escape(m) for m in self.warningMessages)
+        body = '<br/>'.join(
+            html.escape(QCoreApplication.translate('environment', m))
+            for m in self.warningMessages
+        )
         self._environmentBannerLabel.setText(
-            '<b>Display environment</b><br/>{}'.format(body)
+            '<b>{}</b><br/>{}'.format(html.escape(self.tr('Display environment')), body)
         )
         self._environmentBannerFrame.setVisible(True)
 
@@ -901,9 +927,11 @@ class GammaMainWindow(QMainWindow):
             self._showGammaApplyFailure()
         if not remove_res.ok:
             tip = self.statusBar.currentMessage()
-            suffix = ' — Autostart: {}.'.format(remove_res.error_message)
+            suffix = self.tr(' — Autostart: {}.').format(remove_res.error_message)
             self.statusBar.showMessage(
-                (tip + suffix) if tip else 'Could not remove autostart ({}).'.format(
+                (tip + suffix)
+                if tip
+                else self.tr('Could not remove autostart ({}).').format(
                     remove_res.error_message
                 ),
                 12000,
@@ -911,11 +939,11 @@ class GammaMainWindow(QMainWindow):
         elif apply_ok:
             if remove_res.removed:
                 self.statusBar.showMessage(
-                    'Reset to defaults and removed from autostart',
+                    self.tr('Reset to defaults and removed from autostart'),
                     3000,
                 )
             else:
-                self.statusBar.showMessage('Reset to defaults', 3000)
+                self.statusBar.showMessage(self.tr('Reset to defaults'), 3000)
 
         self._updateReferenceImage(self.currentGamma)
         self.isUpdating = False
@@ -933,16 +961,19 @@ class GammaMainWindow(QMainWindow):
         command = self.gammaCore.buildXgammaCommand(red=red, green=green, blue=blue)
         
         if not command:
-            self.statusBar.showMessage('Error: xgamma not available', 3000)
+            self.statusBar.showMessage(self.tr('Error: xgamma not available'), 3000)
             return
         
         # Сохраняем команду xgamma в автозапуск, чтобы настройки гаммы применялись автоматически при старте системы.
         save_res = self.configManager.saveToAutostart(command)
         if save_res.ok:
-            self.statusBar.showMessage('Settings applied and saved to autostart', 3000)
+            self.statusBar.showMessage(
+                self.tr('Settings applied and saved to autostart'),
+                3000,
+            )
         else:
             self.statusBar.showMessage(
-                'Could not save to autostart ({}). See log for details.'.format(
+                self.tr('Could not save to autostart ({}). See log for details.').format(
                     save_res.error_message
                 ),
                 8000,
