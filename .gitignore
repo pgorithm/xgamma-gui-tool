@@ -35,6 +35,7 @@ out/
 
 # Cursor
 .cursor/
+AGENTS.md
 
 # OS sync tools
 .DS_Store?

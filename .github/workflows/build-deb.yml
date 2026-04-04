@@ -1,196 +1,144 @@
 name: Build DEB package
 
-# Этот workflow запускается автоматически при создании нового тега (релиза)
+# Запуск при публикации релиза (включая pre-release), не при сохранении черновика
 on:
   release:
-    types: [created]
+    types: [published]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Указываем права доступа для работы с релизами
     permissions:
-      contents: write  # Необходимо для загрузки файлов в релиз
-    
+      contents: write
+
     steps:
-    # Шаг 1: Получить код из репозитория
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    # Шаг 2: Настроить Python
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.8'
-        
-    # Шаг 3: Установить системные зависимости для сборки .deb пакетов
-    - name: Install build dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          build-essential \
-          debhelper \
-          dh-python \
-          python3-all \
-          python3-setuptools \
-          python3-stdeb \
-          fakeroot \
-          devscripts
-        
-    # Шаг 4: Установить Python зависимости проекта
-    - name: Install Python dependencies
-      run: |
-        python3 -m pip install --upgrade pip
-        pip3 install -r requirements.txt
-        pip3 install stdeb
-        
-    # Шаг 5: Извлечь версию из тега релиза (убираем префикс 'v' если есть)
-    - name: Extract version from tag
-      id: get_version
-      run: |
-        # Для события release используем tag_name из контекста события
-        TAG_NAME="${{ github.event.release.tag_name }}"
-        # Убираем префикс 'v' если есть
-        VERSION=${TAG_NAME#v}
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Tag name: $TAG_NAME"
-        echo "Version extracted: $VERSION"
-        
-    # Шаг 6: Подготовить структуру для .deb пакета
-    - name: Prepare DEB package structure
-      run: |
-        # Создаем временную директорию для сборки
-        mkdir -p deb_build
-        cp -r debian deb_build/
-        cp -r src deb_build/
-        cp main.py deb_build/
-        cp requirements.txt deb_build/
-        cp README.md deb_build/
-        # Копируем desktop файл из debian/, если есть
-        if [ -f debian/xgamma-gui-tool.desktop ]; then
-          cp debian/xgamma-gui-tool.desktop deb_build/debian/
-        fi
-        # Делаем скрипты исполняемыми
-        chmod +x deb_build/debian/rules
-        chmod +x deb_build/debian/postinst
-        chmod +x deb_build/debian/postrm
-        # Проверяем, что все необходимые файлы на месте
-        echo "Checking required files..."
-        [ -f deb_build/debian/control ] || (echo "Error: debian/control not found!" && exit 1)
-        [ -f deb_build/debian/changelog ] || (echo "Error: debian/changelog not found!" && exit 1)
-        [ -f deb_build/debian/rules ] || (echo "Error: debian/rules not found!" && exit 1)
-        [ -d deb_build/src ] || (echo "Error: src directory not found!" && exit 1)
-        [ -f deb_build/main.py ] || (echo "Error: main.py not found!" && exit 1)
-        echo "All required files are present"
-        
-    # Шаг 7: Обновить версию в changelog файле
-    - name: Update version in package files
-      run: |
-        VERSION="${{ steps.get_version.outputs.version }}"
-        echo "Updating version to: ${VERSION}"
-        # Обновляем версию в changelog
-        # Формат: xgamma-gui-tool (1.0.0-1) unstable; urgency=low
-        # Заменяем только версию в скобках, сохраняя остальной формат
-        sed -i "1s/([^)]*)/(${VERSION}-1)/" deb_build/debian/changelog
-        # Проверяем результат
-        echo "Changelog first line:"
-        head -n 1 deb_build/debian/changelog
-        # Проверяем, что версия обновлена
-        if ! head -n 1 deb_build/debian/changelog | grep -q "(${VERSION}-1)"; then
-          echo "ERROR: Changelog version update failed!"
-          exit 1
-        fi
-        # Выводим весь changelog для проверки формата
-        echo "Full changelog for format verification:"
-        cat deb_build/debian/changelog
-        echo "---"
-        
-    # Шаг 8: Проверить формат debian файлов перед сборкой
-    - name: Validate debian files format
-      run: |
-        cd deb_build
-        echo "Validating changelog format..."
-        dpkg-parsechangelog || (echo "ERROR: Invalid changelog format!" && cat debian/changelog && exit 1)
-        echo "Validating control file..."
-        # Проверяем синтаксис control файла
-        if ! grep -q "^Package:" debian/control; then
-          echo "ERROR: Invalid control file - Package field not found!"
-          exit 1
-        fi
-        echo "All debian files are valid"
-        
-    # Шаг 9: Собрать .deb пакет
-    - name: Build DEB package
-      run: |
-        cd deb_build
-        echo "Current directory: $(pwd)"
-        echo "Contents:"
-        ls -la
-        echo "Debian directory contents:"
-        ls -la debian/
-        echo "Starting build..."
-        # Используем dpkg-buildpackage для сборки
-        # -us: не подписывать исходный код
-        # -uc: не подписывать changelog
-        # -b: собрать только бинарный пакет
-        # -jauto: использовать все доступные ядра для параллельной сборки
-        dpkg-buildpackage -us -uc -b -jauto || {
-          echo "Build failed with exit code: $?"
-          echo "Checking for build logs..."
-          ls -la ../*.build 2>/dev/null || echo "No .build files found"
-          cat ../*.build 2>/dev/null || true
-          echo "Checking for other log files..."
-          ls -la ../*.log 2>/dev/null || echo "No .log files found"
-          cat ../*.log 2>/dev/null || true
-          exit 1
-        }
-        echo "Build completed successfully!"
-        echo "Checking for .deb file in parent directory..."
-        DEB_COUNT=$(find .. -maxdepth 1 -name "*.deb" -type f 2>/dev/null | wc -l)
-        if [ "$DEB_COUNT" -eq 0 ]; then
-          echo "WARNING: .deb file not found after build!"
-          echo "Checking all files in parent directory:"
-          ls -la ../
-          echo "Checking for any .deb files recursively:"
-          find .. -name "*.deb" -type f 2>/dev/null || echo "No .deb files found anywhere"
-          echo "Checking build output for other files:"
-          ls -la ../*.changes 2>/dev/null || echo "No .changes file"
-          ls -la ../*.dsc 2>/dev/null || echo "No .dsc file"
-        else
-          echo "SUCCESS: Found $DEB_COUNT .deb file(s)!"
-          ls -lh ../*.deb
-        fi
-        
-    # Шаг 10: Найти собранный .deb файл
-    - name: Find DEB package
-      id: find_deb
-      run: |
-        # Каждый шаг начинается с корневой директории проекта
-        # dpkg-buildpackage создает .deb в родительской директории от deb_build,
-        # то есть в корне проекта
-        echo "Current directory: $(pwd)"
-        echo "Searching for .deb files in current directory..."
-        ls -la *.deb 2>/dev/null || echo "No .deb files in current directory"
-        # Ищем .deb файл в корне проекта (где должен быть создан dpkg-buildpackage)
-        DEB_FILE=$(find . -maxdepth 1 -name "*.deb" -type f | head -n 1)
-        if [ -z "$DEB_FILE" ]; then
-          echo "Error: DEB package not found in current directory!"
-          echo "Listing all files in current directory:"
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            debhelper \
+            dh-python \
+            python3-all \
+            python3-setuptools \
+            fakeroot \
+            devscripts
+
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements.txt
+
+      - name: Extract version from tag
+        id: get_version
+        run: |
+          TAG_NAME="${{ github.event.release.tag_name }}"
+          VERSION=${TAG_NAME#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Tag name: $TAG_NAME"
+          echo "Version extracted: $VERSION"
+
+      - name: Prepare DEB package structure
+        run: |
+          mkdir -p deb_build
+          cp -r debian deb_build/
+          cp -r src deb_build/
+          cp main.py deb_build/
+          cp requirements.txt deb_build/
+          cp README.md deb_build/
+          if [ -f debian/xgamma-gui-tool.desktop ]; then
+            cp debian/xgamma-gui-tool.desktop deb_build/debian/
+          fi
+          chmod +x deb_build/debian/rules
+          [ -f deb_build/debian/postinst ] && chmod +x deb_build/debian/postinst
+          [ -f deb_build/debian/postrm ] && chmod +x deb_build/debian/postrm
+          echo "Checking required files..."
+          [ -f deb_build/debian/control ] || (echo "Error: debian/control not found!" && exit 1)
+          [ -f deb_build/debian/changelog ] || (echo "Error: debian/changelog not found!" && exit 1)
+          [ -f deb_build/debian/rules ] || (echo "Error: debian/rules not found!" && exit 1)
+          [ -d deb_build/src ] || (echo "Error: src directory not found!" && exit 1)
+          [ -f deb_build/main.py ] || (echo "Error: main.py not found!" && exit 1)
+          echo "All required files are present"
+
+      - name: Update version in package files
+        run: |
+          VERSION="${{ steps.get_version.outputs.version }}"
+          echo "Updating version to: ${VERSION}"
+          sed -i "1s/([^)]*)/(${VERSION}-1)/" deb_build/debian/changelog
+          echo "Changelog first line:"
+          head -n 1 deb_build/debian/changelog
+          if ! head -n 1 deb_build/debian/changelog | grep -qF "(${VERSION}-1)"; then
+            echo "ERROR: Changelog version update failed!"
+            exit 1
+          fi
+          echo "Full changelog for format verification:"
+          cat deb_build/debian/changelog
+          echo "---"
+
+      - name: Validate debian files format
+        run: |
+          cd deb_build
+          echo "Validating changelog format..."
+          dpkg-parsechangelog || (echo "ERROR: Invalid changelog format!" && cat debian/changelog && exit 1)
+          echo "Validating control file..."
+          if ! grep -q "^Package:" debian/control; then
+            echo "ERROR: Invalid control file - Package field not found!"
+            exit 1
+          fi
+          echo "All debian files are valid"
+
+      - name: Build DEB package
+        run: |
+          cd deb_build
+          echo "Current directory: $(pwd)"
           ls -la
-          echo "Searching recursively for .deb files:"
-          find . -name "*.deb" -type f
-          exit 1
-        fi
-        # Используем полный путь для следующего шага
-        DEB_FILE_ABS="$(pwd)/${DEB_FILE#./}"
-        echo "deb_file=$DEB_FILE_ABS" >> $GITHUB_OUTPUT
-        echo "Found DEB package: $DEB_FILE_ABS"
-        
-    # Шаг 11: Прикрепить .deb пакет к релизу
-    - name: Upload DEB to release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: ${{ steps.find_deb.outputs.deb_file }}
-        tag_name: ${{ github.event.release.tag_name }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ls -la debian/
+          echo "Starting build..."
+          dpkg-buildpackage -us -uc -b -jauto || {
+            echo "Build failed"
+            ls -la ../*.build 2>/dev/null || echo "No .build files found"
+            cat ../*.build 2>/dev/null || true
+            ls -la ../*.log 2>/dev/null || echo "No .log files found"
+            cat ../*.log 2>/dev/null || true
+            exit 1
+          }
+          echo "Build completed successfully!"
+          DEB_COUNT=$(find .. -maxdepth 1 -name "*.deb" -type f 2>/dev/null | wc -l)
+          if [ "$DEB_COUNT" -eq 0 ]; then
+            echo "WARNING: .deb file not found after build!"
+            ls -la ../
+            find .. -name "*.deb" -type f 2>/dev/null || echo "No .deb files found anywhere"
+            ls -la ../*.changes 2>/dev/null || echo "No .changes file"
+            ls -la ../*.dsc 2>/dev/null || echo "No .dsc file"
+          else
+            echo "SUCCESS: Found $DEB_COUNT .deb file(s)!"
+            ls -lh ../*.deb
+          fi
+
+      - name: Find DEB package
+        id: find_deb
+        run: |
+          echo "Current directory: $(pwd)"
+          ls -la *.deb 2>/dev/null || echo "No .deb files in current directory"
+          DEB_FILE=$(find . -maxdepth 1 -name "*.deb" -type f | head -n 1)
+          if [ -z "$DEB_FILE" ]; then
+            echo "Error: DEB package not found in current directory!"
+            ls -la
+            find . -name "*.deb" -type f
+            exit 1
+          fi
+          DEB_FILE_ABS="$(pwd)/${DEB_FILE#./}"
+          echo "deb_file=$DEB_FILE_ABS" >> $GITHUB_OUTPUT
+          echo "Found DEB package: $DEB_FILE_ABS"
+
+      - name: Upload DEB to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.find_deb.outputs.deb_file }}
+          tag_name: ${{ github.event.release.tag_name }}
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
