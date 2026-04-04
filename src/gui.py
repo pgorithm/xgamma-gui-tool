@@ -27,6 +27,15 @@ from PyQt5.QtCore import QThread, pyqtSignal
 
 _logger = logging.getLogger(__name__)
 
+# PRD 3.11.4 / 5.1: All row shows mean of R/G/B when they differ; moving All equalizes channels.
+_ALL_ROW_TOOLTIP = (
+    'While Red, Green, and Blue differ, this row shows their arithmetic average. '
+    'Moving the All slider sets all three channels to the same gamma value.'
+)
+_ALL_ROW_STATUS_TIP = (
+    'Average when R/G/B differ; dragging All sets all three channels equal.'
+)
+
 
 class InitializationWorker(QThread):
     """
@@ -343,7 +352,7 @@ class GammaMainWindow(QMainWindow):
             ('red', 'Red'),
             ('green', 'Green'),
             ('blue', 'Blue'),
-            ('all', 'All')
+            ('all', 'All'),
         ]
         fontMetrics = QFontMetrics(self.font())
         maxLabelWidth = max(fontMetrics.width(f'{label}:') for _, label in channels) + 10
@@ -405,6 +414,14 @@ class GammaMainWindow(QMainWindow):
             self.widgetChannel[valueInput] = channel
             self.valueInputs[channel] = valueInput
             sliderLayout.addWidget(valueInput)
+
+            if channel == 'all':
+                channelLabel.setToolTip(_ALL_ROW_TOOLTIP)
+                channelLabel.setStatusTip(_ALL_ROW_STATUS_TIP)
+                slider.setToolTip(_ALL_ROW_TOOLTIP)
+                slider.setStatusTip(_ALL_ROW_STATUS_TIP)
+                valueInput.setToolTip(_ALL_ROW_TOOLTIP)
+                valueInput.setStatusTip(_ALL_ROW_STATUS_TIP)
             
             mainLayout.addLayout(sliderLayout)
         
@@ -653,7 +670,7 @@ class GammaMainWindow(QMainWindow):
             # Обновляем конкретный канал гаммы, когда пользователь изменяет его ползунок или поле ввода, фокусируясь на индивидуальной настройке.
             self.valueInputs[channel].setText(f'{gamma:.3f}')
             
-            # Синхронизируем ползунок "all" со средним по RGB, блокируя сигналы, чтобы избежать рекурсивных обновлений. (Примечание: возможно, этот элемент будет удален в будущем, если его полезность будет сомнительна).
+            # Синхронизируем ползунок All со средним арифметическим RGB (см. tooltip на строке All).
             redGamma = self._sliderValueToGamma(self.sliders['red'].value())
             greenGamma = self._sliderValueToGamma(self.sliders['green'].value())
             blueGamma = self._sliderValueToGamma(self.sliders['blue'].value())
