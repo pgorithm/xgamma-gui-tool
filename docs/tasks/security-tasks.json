@@ -215,7 +215,7 @@
         "Для файловых тестов использовать tempfile/TemporaryDirectory и изолированные пути"
       ],
       "dependencies": [],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "SEC-007",
