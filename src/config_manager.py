@@ -31,17 +31,41 @@ def _user_safe_fs_reason(exc: BaseException) -> str:
     return type(exc).__name__
 
 
+def _autostart_desktop_unsafe_for_write(path: Path) -> Optional[str]:
+    """
+    Refuse writes that would follow a symlink or clobber a non-file (SEC-007).
+
+    Returns a short user-facing reason, or None if the path may be written.
+    """
+    if path.is_symlink():
+        return 'autostart path is a symlink'
+    if path.exists() and not path.is_file():
+        return 'autostart path is not a regular file'
+    return None
+
+
 class ConfigManager:
     """Manager for autostart configuration files."""
     
     AUTOSTART_DIR = Path.home() / '.config' / 'autostart'
-    DESKTOP_FILE = AUTOSTART_DIR / 'xgamma_gui_tool.desktop'
+    DESKTOP_BASENAME = 'xgamma_gui_tool.desktop'
     COMMENT_PREFIX = '# Applied by xgamma GUI Tool'
-    
-    def __init__(self):
-        """Initialize ConfigManager and ensure autostart directory exists."""
-        self.autostartDir = self.AUTOSTART_DIR
-        self.desktopFile = self.DESKTOP_FILE
+
+    def __init__(
+        self,
+        autostart_dir: Optional[Path] = None,
+        desktop_basename: Optional[str] = None,
+    ):
+        """
+        Initialize ConfigManager and ensure autostart directory exists.
+
+        autostart_dir / desktop_basename are optional overrides for tests (SEC-007).
+        """
+        self.autostartDir = (
+            Path(autostart_dir) if autostart_dir is not None else self.AUTOSTART_DIR
+        )
+        name = desktop_basename if desktop_basename is not None else self.DESKTOP_BASENAME
+        self.desktopFile = self.autostartDir / name
         self._ensureAutostartDir()
     
     def _ensureAutostartDir(self):
@@ -58,6 +82,14 @@ class ConfigManager:
         Returns:
             AutostartSaveResult: ok and optional user-safe error_message
         """
+        blocked = _autostart_desktop_unsafe_for_write(self.desktopFile)
+        if blocked is not None:
+            logger.warning(
+                'Refusing autostart write (SEC-007): %s at %s',
+                blocked,
+                self.desktopFile,
+            )
+            return AutostartSaveResult(False, blocked)
         try:
             # Формируем содержимое desktop-файла
             desktopContent = f"""[Desktop Entry]

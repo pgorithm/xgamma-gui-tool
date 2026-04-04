@@ -25,6 +25,8 @@ venv/
 
 # Security audit: local pytest and PoC/exploit scripts (not versioned)
 tests/*
+!tests/security/
+!tests/security/**
 
 # Build artifacts
 build/
