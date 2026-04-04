@@ -52,7 +52,7 @@
         "Шаг 3: при успешном автозапуске сценарий Save/Reset работает как раньше"
       ],
       "dependencies": [],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-003",

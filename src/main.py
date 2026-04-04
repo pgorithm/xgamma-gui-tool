@@ -3,6 +3,7 @@ Main entry point for xgamma GUI Tool application.
 Handles dependency checks and application initialization.
 """
 
+import logging
 import sys
 from PyQt5.QtWidgets import QApplication, QMessageBox
 from .gamma_core import GammaCore
@@ -34,6 +35,12 @@ def checkDependencies():
 
 def main():
     """Main application entry point."""
+    if not logging.root.handlers:
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(levelname)s %(name)s: %(message)s',
+        )
+
     # Создаем QApplication
     app = QApplication(sys.argv)
     app.setApplicationName('xgamma GUI Tool')

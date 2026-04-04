@@ -764,15 +764,27 @@ class GammaMainWindow(QMainWindow):
         self.pendingGamma = None
         apply_ok = self.gammaCore.applyGamma(overall=1.0)
 
-        # Удаляем приложение из автозапуска, если оно было туда добавлено, чтобы полностью сбросить настройки.
-        removed = self.configManager.removeFromAutostart()
+        remove_res = self.configManager.removeFromAutostart()
         if not apply_ok:
             self._showGammaApplyFailure()
-        elif removed:
-            self.statusBar.showMessage('Reset to defaults and removed from autostart', 3000)
-        else:
-            self.statusBar.showMessage('Reset to defaults', 3000)
-        
+        if not remove_res.ok:
+            tip = self.statusBar.currentMessage()
+            suffix = ' — Autostart: {}.'.format(remove_res.error_message)
+            self.statusBar.showMessage(
+                (tip + suffix) if tip else 'Could not remove autostart ({}).'.format(
+                    remove_res.error_message
+                ),
+                12000,
+            )
+        elif apply_ok:
+            if remove_res.removed:
+                self.statusBar.showMessage(
+                    'Reset to defaults and removed from autostart',
+                    3000,
+                )
+            else:
+                self.statusBar.showMessage('Reset to defaults', 3000)
+
         self._updateReferenceImage(self.currentGamma)
         self.isUpdating = False
 
@@ -791,10 +803,16 @@ class GammaMainWindow(QMainWindow):
             return
         
         # Сохраняем команду xgamma в автозапуск, чтобы настройки гаммы применялись автоматически при старте системы.
-        if self.configManager.saveToAutostart(command):
+        save_res = self.configManager.saveToAutostart(command)
+        if save_res.ok:
             self.statusBar.showMessage('Settings applied and saved to autostart', 3000)
         else:
-            self.statusBar.showMessage('Error: Failed to apply and save to autostart', 3000)
+            self.statusBar.showMessage(
+                'Could not save to autostart ({}). See log for details.'.format(
+                    save_res.error_message
+                ),
+                8000,
+            )
 
         self._updateReferenceImage(self.currentGamma)
         self.isUpdating = False

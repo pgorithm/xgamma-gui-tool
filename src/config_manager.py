@@ -3,9 +3,32 @@ Module for managing autostart configuration.
 Handles adding and removing xgamma commands from ~/.config/autostart/
 """
 
+import logging
 import os
-import re
 from pathlib import Path
+from typing import NamedTuple, Optional
+
+logger = logging.getLogger(__name__)
+
+
+class AutostartSaveResult(NamedTuple):
+    ok: bool
+    error_message: Optional[str]
+
+
+class AutostartRemoveResult(NamedTuple):
+    ok: bool
+    error_message: Optional[str]
+    removed: bool
+
+
+def _user_safe_fs_reason(exc: BaseException) -> str:
+    """Brief reason for status bar; no full paths (PRD §7)."""
+    if isinstance(exc, PermissionError):
+        return 'permission denied'
+    if isinstance(exc, OSError) and exc.strerror:
+        return exc.strerror
+    return type(exc).__name__
 
 
 class ConfigManager:
@@ -33,7 +56,7 @@ class ConfigManager:
             xgammaCommand (str): xgamma command string to execute on startup
         
         Returns:
-            bool: True if saved successfully, False otherwise
+            AutostartSaveResult: ok and optional user-safe error_message
         """
         try:
             # Формируем содержимое desktop-файла
@@ -53,42 +76,36 @@ X-GNOME-Autostart-enabled=true
             # Делаем файл исполняемым
             os.chmod(self.desktopFile, 0o755)
             
-            return True
-        except Exception:
-            return False
+            return AutostartSaveResult(True, None)
+        except Exception as exc:
+            logger.exception(
+                'Failed to write autostart desktop file at %s',
+                self.desktopFile,
+            )
+            return AutostartSaveResult(False, _user_safe_fs_reason(exc))
     
     def removeFromAutostart(self):
         """
-        Remove xgamma commands from autostart.
-        Removes all xgamma-related entries from autostart directory.
+        Remove this app's autostart desktop file only (PRD 3.6, §7).
         
         Returns:
-            bool: True if removed successfully, False otherwise
+            AutostartRemoveResult: ok, optional user-safe error_message, removed flag
         """
+        if not self.desktopFile.exists():
+            return AutostartRemoveResult(True, None, False)
         try:
-            removed = False
-            
-            # Удаляем наш desktop-файл, если он есть
-            if self.desktopFile.exists():
-                self.desktopFile.unlink()
-                removed = True
-            
-            # Просматриваем все desktop-файлы в каталоге автозапуска и удаляем те, где встречается команда xgamma
-            if self.autostartDir.exists():
-                for desktopFile in self.autostartDir.glob('*.desktop'):
-                    try:
-                        content = desktopFile.read_text(encoding='utf-8')
-                        # Проверяем, содержит ли файл команду xgamma
-                        if 'xgamma' in content.lower():
-                            desktopFile.unlink()
-                            removed = True
-                    except Exception:
-                        # Пропускаем файлы, которые не удалось прочитать
-                        continue
-            
-            return removed
-        except Exception:
-            return False
+            self.desktopFile.unlink()
+            return AutostartRemoveResult(True, None, True)
+        except Exception as exc:
+            logger.exception(
+                'Failed to remove autostart desktop file at %s',
+                self.desktopFile,
+            )
+            return AutostartRemoveResult(
+                False,
+                _user_safe_fs_reason(exc),
+                False,
+            )
     
     def isInAutostart(self):
         """
