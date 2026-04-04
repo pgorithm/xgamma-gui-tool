@@ -11,6 +11,8 @@ import re
 import shutil
 import subprocess
 
+from .desktop_entry import format_desktop_exec_line
+
 
 class GammaCore:
     """Core class for managing gamma settings via xgamma command."""
@@ -203,47 +205,61 @@ class GammaCore:
             self.lastApplyRawOutput = str(error)
             return False
     
+    def buildXgammaArgv(self, red=None, green=None, blue=None, overall=None):
+        """
+        Build argv list for xgamma (executable path + flags/values).
+
+        Returns:
+            list[str]: Non-empty argv, or [] if xgamma is unavailable or values are invalid.
+        """
+        if not self.isXgammaAvailable():
+            return []
+
+        argv = [self.xgammaPath]
+
+        if overall is not None:
+            prepared = self._prepare_gamma_scalar(overall)
+            if prepared is None:
+                return []
+            argv.extend(['-gamma', str(prepared)])
+        else:
+            if red is not None:
+                prepared = self._prepare_gamma_scalar(red)
+                if prepared is None:
+                    return []
+                argv.extend(['-rgamma', str(prepared)])
+            if green is not None:
+                prepared = self._prepare_gamma_scalar(green)
+                if prepared is None:
+                    return []
+                argv.extend(['-ggamma', str(prepared)])
+            if blue is not None:
+                prepared = self._prepare_gamma_scalar(blue)
+                if prepared is None:
+                    return []
+                argv.extend(['-bgamma', str(prepared)])
+
+        return argv
+
     def buildXgammaCommand(self, red=None, green=None, blue=None, overall=None):
         """
-        Build xgamma command string for autostart.
-        
+        Build xgamma Exec= value for autostart (.desktop), with Desktop Entry quoting (SEC-008).
+
         Args:
             red (float, optional): Red channel gamma value
             green (float, optional): Green channel gamma value
             blue (float, optional): Blue channel gamma value
             overall (float, optional): Overall gamma value
-        
+
         Returns:
-            str: Command string ready for autostart file
+            str: Exec line value (no ``Exec=`` prefix), or "" if unavailable/invalid
         """
-        if not self.isXgammaAvailable():
-            return ""
-        
-        parts = [self.xgammaPath]
-        
-        if overall is not None:
-            prepared = self._prepare_gamma_scalar(overall)
-            if prepared is None:
-                return ""
-            parts.extend(['-gamma', str(prepared)])
-        else:
-            if red is not None:
-                prepared = self._prepare_gamma_scalar(red)
-                if prepared is None:
-                    return ""
-                parts.extend(['-rgamma', str(prepared)])
-            if green is not None:
-                prepared = self._prepare_gamma_scalar(green)
-                if prepared is None:
-                    return ""
-                parts.extend(['-ggamma', str(prepared)])
-            if blue is not None:
-                prepared = self._prepare_gamma_scalar(blue)
-                if prepared is None:
-                    return ""
-                parts.extend(['-bgamma', str(prepared)])
-        
-        return ' '.join(parts)
+        argv = self.buildXgammaArgv(
+            red=red, green=green, blue=blue, overall=overall
+        )
+        if not argv:
+            return ''
+        return format_desktop_exec_line(argv)
 
     def _defaultGammaValues(self):
         """Return fallback gamma values."""

@@ -77,7 +77,7 @@ class ConfigManager:
         Save xgamma command to autostart.
         
         Args:
-            xgammaCommand (str): xgamma command string to execute on startup
+            xgammaCommand (str): Exec line value (argv joined per Desktop Entry spec, SEC-008)
         
         Returns:
             AutostartSaveResult: ok and optional user-safe error_message
@@ -91,7 +91,7 @@ class ConfigManager:
             )
             return AutostartSaveResult(False, blocked)
         try:
-            # Формируем содержимое desktop-файла
+            # Exec= must follow Desktop Entry quoting so paths with spaces/special chars work (SEC-008).
             desktopContent = f"""[Desktop Entry]
 Type=Application
 Name=xgamma Gamma Adjustment
