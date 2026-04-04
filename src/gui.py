@@ -8,7 +8,6 @@ a seamless gamma adjustment experience.
 
 import html
 import logging
-import subprocess
 
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -22,6 +21,7 @@ from PyQt5.QtGui import (
     QColor, QIcon, QDoubleValidator
 )
 from .gamma_core import GammaCore
+from .environment_checks import collect_environment_warnings
 from .reference_image import ReferenceImageGenerator
 from .config_manager import ConfigManager
 from .version_info import __version__ as APP_VERSION
@@ -56,82 +56,7 @@ class InitializationWorker(QThread):
         Emit results via the 'finished' signal.
         """
         currentGamma = self.gammaCore.getCurrentGamma()
-
-        # Temporarily create a dummy MainWindow instance to call private methods
-        # for environment warnings without instantiating the full GUI.
-        # This is a workaround as these methods are currently coupled to MainWindow.
-        # In a more extensive refactor, these checks would be moved to GammaCore.
-        class DummyMainWindow:
-            def __init__(self, gamma_core_instance):
-                self.gammaCore = gamma_core_instance
-                self._is_vm_cached = None
-                self._is_hdr_cached = None
-
-            def _readSystemHint(self, path):
-                try:
-                    with open(path, 'r', encoding='utf-8', errors='ignore') as file:
-                        return file.readline().strip()
-                except (FileNotFoundError, PermissionError, OSError):
-                    return ''
-
-            def _isVirtualMachine(self):
-                if self._is_vm_cached is not None:
-                    return self._is_vm_cached
-                
-                keywords = ['virtualbox', 'vmware', 'kvm', 'qemu', 'hyper-v', 'parallels']
-                hints = [
-                    self._readSystemHint('/sys/class/dmi/id/product_name'),
-                    self._readSystemHint('/sys/class/dmi/id/sys_vendor')
-                ]
-                for hint in hints:
-                    lowered = hint.lower()
-                    if lowered and any(word in lowered for word in keywords):
-                        self._is_vm_cached = True
-                        return True
-                try:
-                    result = subprocess.run(
-                        ['systemd-detect-virt'],
-                        capture_output=True,
-                        text=True,
-                        timeout=2
-                    )
-                    vm_result = result.returncode == 0 and result.stdout.strip() not in ('none', '')
-                    self._is_vm_cached = vm_result
-                    return vm_result
-                except (FileNotFoundError, subprocess.TimeoutExpired, PermissionError):
-                    self._is_vm_cached = False
-                    return False
-
-            def _isHdrPipelineActive(self):
-                if self._is_hdr_cached is not None:
-                    return self._is_hdr_cached
-                
-                try:
-                    result = subprocess.run(
-                        ['xrandr', '--verbose'],
-                        capture_output=True,
-                        text=True,
-                        timeout=3
-                    )
-                except (FileNotFoundError, subprocess.TimeoutExpired, PermissionError):
-                    self._is_hdr_cached = False
-                    return False
-                text = result.stdout.lower()
-                hdrTokens = ['hdr', '10 bpc', '10-bit', 'deep color']
-                hdr_result = any(token in text for token in hdrTokens)
-                self._is_hdr_cached = hdr_result
-                return hdr_result
-
-            def _collectEnvironmentWarnings(self):
-                messages = []
-                if self._isVirtualMachine():
-                    messages.append('VM environment may limit gamma adjustment.')
-                if self._isHdrPipelineActive():
-                    messages.append('HDR or 10-bit mode may disable manual gamma adjustment.')
-                return messages
-
-        dummy_main_window = DummyMainWindow(self.gammaCore)
-        warningMessages = dummy_main_window._collectEnvironmentWarnings()
+        warningMessages = collect_environment_warnings()
 
         self.finished.emit({
             'gamma': currentGamma,
