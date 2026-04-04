@@ -84,11 +84,8 @@ class ConfigManager:
         """
         blocked = _autostart_desktop_unsafe_for_write(self.desktopFile)
         if blocked is not None:
-            logger.warning(
-                'Refusing autostart write (SEC-007): %s at %s',
-                blocked,
-                self.desktopFile,
-            )
+            logger.warning('Refusing autostart write (SEC-007): %s', blocked)
+            logger.debug('Autostart desktop path: %s', self.desktopFile)
             return AutostartSaveResult(False, blocked)
         try:
             # Exec= must follow Desktop Entry quoting so paths with spaces/special chars work (SEC-008).
@@ -110,10 +107,8 @@ X-GNOME-Autostart-enabled=true
             
             return AutostartSaveResult(True, None)
         except Exception as exc:
-            logger.exception(
-                'Failed to write autostart desktop file at %s',
-                self.desktopFile,
-            )
+            logger.exception('Failed to write autostart desktop file')
+            logger.debug('Autostart desktop path: %s', self.desktopFile)
             return AutostartSaveResult(False, _user_safe_fs_reason(exc))
     
     def removeFromAutostart(self):
@@ -129,10 +124,8 @@ X-GNOME-Autostart-enabled=true
             self.desktopFile.unlink()
             return AutostartRemoveResult(True, None, True)
         except Exception as exc:
-            logger.exception(
-                'Failed to remove autostart desktop file at %s',
-                self.desktopFile,
-            )
+            logger.exception('Failed to remove autostart desktop file')
+            logger.debug('Autostart desktop path: %s', self.desktopFile)
             return AutostartRemoveResult(
                 False,
                 _user_safe_fs_reason(exc),

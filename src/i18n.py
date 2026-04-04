@@ -138,14 +138,68 @@ _RU: dict[tuple[str, str], str] = {
         "Не удалось прочитать гамму дисплея; показаны значения по умолчанию (1.0). "
         "Проверьте DISPLAY и xgamma."
     ),
-    ("GammaMainWindow", "Could not apply gamma to the display."): (
-        "Не удалось применить гамму к дисплею."
+    (
+        "GammaMainWindow",
+        "Could not apply gamma — timed out. Full output is in the log.",
+    ): (
+        "Не удалось применить гамму — время ожидания истекло. Полный вывод в журнале."
+    ),
+    (
+        "GammaMainWindow",
+        "Could not apply gamma — invalid value. Full output is in the log.",
+    ): (
+        "Не удалось применить гамму — недопустимое значение. Полный вывод в журнале."
+    ),
+    (
+        "GammaMainWindow",
+        "Could not apply gamma — internal error. Full output is in the log.",
+    ): (
+        "Не удалось применить гамму — внутренняя ошибка. Полный вывод в журнале."
+    ),
+    (
+        "GammaMainWindow",
+        "Could not apply gamma — no output from the utility. Full output is in the log.",
+    ): (
+        "Не удалось применить гамму — утилита не выдала вывод. Полный вывод в журнале."
+    ),
+    (
+        "GammaMainWindow",
+        "Could not apply gamma — the utility reported a failure. "
+        "Full output is in the log.",
+    ): (
+        "Не удалось применить гамму — утилита сообщила об ошибке. Полный вывод в журнале."
     ),
     ("GammaMainWindow", "Display environment"): "Окружение дисплея",
-    ("GammaMainWindow", "Could not remove autostart ({})."): (
-        "Не удалось удалить автозапуск ({})."
+    (
+        "GammaMainWindow",
+        "Autostart: unsafe path (symlink). Details are in the log.",
+    ): (
+        "Автозапуск: небезопасный путь (симлинк). Подробности в журнале."
     ),
-    ("GammaMainWindow", " — Autostart: {}."): " — Автозапуск: {}.",
+    (
+        "GammaMainWindow",
+        "Autostart: path is not a regular file. Details are in the log.",
+    ): (
+        "Автозапуск: путь не является обычным файлом. Подробности в журнале."
+    ),
+    (
+        "GammaMainWindow",
+        "Autostart: permission denied. Details are in the log.",
+    ): "Автозапуск: отказ в доступе. Подробности в журнале.",
+    (
+        "GammaMainWindow",
+        "Autostart: file operation failed. Details are in the log.",
+    ): (
+        "Автозапуск: не удалось выполнить операцию с файлом. Подробности в журнале."
+    ),
+    (
+        "GammaMainWindow",
+        "Could not finish reset — gamma apply and autostart removal failed. "
+        "Details are in the log.",
+    ): (
+        "Не удалось завершить сброс — сбой применения гаммы и удаления автозапуска. "
+        "Подробности в журнале."
+    ),
     ("GammaMainWindow", "Reset to defaults and removed from autostart"): (
         "Сброшено к значениям по умолчанию, автозапуск удалён"
     ),
@@ -155,10 +209,6 @@ _RU: dict[tuple[str, str], str] = {
         "GammaMainWindow",
         "Settings applied and saved to autostart",
     ): "Параметры применены и сохранены в автозапуск",
-    (
-        "GammaMainWindow",
-        "Could not save to autostart ({}). See log for details.",
-    ): "Не удалось сохранить в автозапуск ({}). Подробности в журнале.",
     (
         "environment",
         "VM environment may limit gamma adjustment.",

@@ -8,6 +8,7 @@ a seamless gamma adjustment experience.
 
 import html
 import logging
+from typing import Optional
 
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -44,6 +45,30 @@ from .i18n import (
 )
 
 _logger = logging.getLogger(__name__)
+
+_APPLY_LOG_MAX = 8000
+
+
+def _truncate_for_log(text: Optional[str], limit: int = _APPLY_LOG_MAX) -> str:
+    t = text if text is not None else ''
+    if len(t) <= limit:
+        return t
+    return t[: limit - 3] + '...'
+
+
+def _apply_failure_category(raw: Optional[str]) -> str:
+    """Classify apply failure for UI (SEC-005/013/015); full raw output is logged separately."""
+    r = (raw or '').strip()
+    rl = r.lower()
+    if 'invalid apply spec' in rl:
+        return 'bad_spec'
+    if 'invalid gamma value' in rl:
+        return 'invalid_value'
+    if rl.startswith('timeout:') or 'timed out' in rl:
+        return 'timeout'
+    if not r or r == '(no output)':
+        return 'no_output'
+    return 'utility_error'
 
 
 class InitializationWorker(QThread):
@@ -827,20 +852,63 @@ class GammaMainWindow(QMainWindow):
         )
         self.referenceLabel.setPixmap(scaled)
 
+    def _log_autostart_failure(self, action: str, detail: Optional[str]) -> None:
+        if detail:
+            _logger.warning('Autostart %s failed: %s', action, detail)
+        else:
+            _logger.warning('Autostart %s failed', action)
+
+    def _brief_autostart_status(self, reason: Optional[str]) -> str:
+        """Short status when autostart save/remove fails; reason is logged, not shown raw (SEC-005)."""
+        r = (reason or '').lower()
+        if 'symlink' in r:
+            return self.tr(
+                'Autostart: unsafe path (symlink). Details are in the log.'
+            )
+        if 'not a regular file' in r:
+            return self.tr(
+                'Autostart: path is not a regular file. Details are in the log.'
+            )
+        if 'permission' in r:
+            return self.tr('Autostart: permission denied. Details are in the log.')
+        return self.tr(
+            'Autostart: file operation failed. Details are in the log.'
+        )
+
     def _showGammaApplyFailure(self, detail=None):
-        """User-visible status when xgamma apply fails; full output kept in GammaCore."""
+        """Brief classified status when apply fails; full subprocess output only in logs (SEC-005)."""
         if detail is None:
             detail = self.gammaCore.getLastApplyRawOutput().strip()
         else:
             detail = str(detail).strip()
-        base = self.tr('Could not apply gamma to the display.')
-        if detail:
-            one_line = ' '.join(detail.split())
-            if len(one_line) > 180:
-                one_line = one_line[:177] + '...'
-            self.statusBar.showMessage('{} {}'.format(base, one_line), 10000)
+        cat = _apply_failure_category(detail)
+        _logger.warning(
+            'Gamma apply failed (%s): %s',
+            cat,
+            _truncate_for_log(detail),
+        )
+        if cat == 'timeout':
+            msg = self.tr(
+                'Could not apply gamma — timed out. Full output is in the log.'
+            )
+        elif cat == 'invalid_value':
+            msg = self.tr(
+                'Could not apply gamma — invalid value. Full output is in the log.'
+            )
+        elif cat == 'bad_spec':
+            msg = self.tr(
+                'Could not apply gamma — internal error. Full output is in the log.'
+            )
+        elif cat == 'no_output':
+            msg = self.tr(
+                'Could not apply gamma — no output from the utility. Full output is in the log.'
+            )
         else:
-            self.statusBar.showMessage(base, 8000)
+            msg = self.tr(
+                'Could not apply gamma — the utility reported a failure. '
+                'Full output is in the log.'
+            )
+        self.statusBar.showMessage(msg, 10000)
 
     def _dispatchGammaApply(self, spec, from_reset=False):
         """Queue ``applyGamma`` on the worker thread (SEC-004)."""
@@ -860,17 +928,22 @@ class GammaMainWindow(QMainWindow):
 
         if from_reset:
             remove_res = self.configManager.removeFromAutostart()
-            if not ok:
+            if not ok and not remove_res.ok:
                 self._showGammaApplyFailure(raw)
-            if not remove_res.ok:
-                tip = self.statusBar.currentMessage()
-                suffix = self.tr(' — Autostart: {}.').format(remove_res.error_message)
+                self._log_autostart_failure('remove', remove_res.error_message)
                 self.statusBar.showMessage(
-                    (tip + suffix)
-                    if tip
-                    else self.tr('Could not remove autostart ({}).').format(
-                        remove_res.error_message
+                    self.tr(
+                        'Could not finish reset — gamma apply and autostart removal failed. '
+                        'Details are in the log.'
                     ),
+                    12000,
+                )
+            elif not ok:
+                self._showGammaApplyFailure(raw)
+            elif not remove_res.ok:
+                self._log_autostart_failure('remove', remove_res.error_message)
+                self.statusBar.showMessage(
+                    self._brief_autostart_status(remove_res.error_message),
                     12000,
                 )
             elif ok:
@@ -1200,10 +1273,9 @@ class GammaMainWindow(QMainWindow):
                 3000,
             )
         else:
+            self._log_autostart_failure('save', save_res.error_message)
             self.statusBar.showMessage(
-                self.tr('Could not save to autostart ({}). See log for details.').format(
-                    save_res.error_message
-                ),
+                self._brief_autostart_status(save_res.error_message),
                 8000,
             )
 
