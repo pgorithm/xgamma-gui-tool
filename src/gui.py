@@ -480,7 +480,7 @@ class GammaMainWindow(QMainWindow):
             
             mainLayout.addLayout(sliderLayout)
         
-        # Создаем кнопки управления (Reset, Apply), чтобы предоставить пользователю функционал для сброса настроек и сохранения изменений.
+        # Создаем кнопки управления (Reset, сохранение в XDG autostart — не «применить сейчас», см. PRD 3.7 / SEC-014).
         buttonLayout = QHBoxLayout()
         buttonLayout.addStretch()
         
@@ -491,8 +491,9 @@ class GammaMainWindow(QMainWindow):
         
         buttonLayout.addStretch()
         
-        self.saveButton = QPushButton(self.tr('Apply'))
+        self.saveButton = QPushButton(self.tr('Save to autostart'))
         self.saveButton.setEnabled(False)
+        self.saveButton.setToolTip(self._autostartSaveButtonTooltip())
         self.saveButton.clicked.connect(self._onSaveClicked)
         buttonLayout.addWidget(self.saveButton)
         
@@ -584,11 +585,20 @@ class GammaMainWindow(QMainWindow):
             w.setStatusTip(_all_status)
 
         self.resetButton.setText(self.tr('Reset'))
-        self.saveButton.setText(self.tr('Apply'))
+        self.saveButton.setText(self.tr('Save to autostart'))
+        self.saveButton.setToolTip(self._autostartSaveButtonTooltip())
 
         self._updateWarningIndicator()
         if self.warningMessages and not self._environmentBannerDismissed:
             self._updateEnvironmentBanner()
+
+    def _autostartSaveButtonTooltip(self):
+        """PRD 3.7 / 3.11.13 (SEC-014): live apply vs writing ~/.config/autostart for next login."""
+        return self.tr(
+            'Moving the sliders already applies gamma to the display.\n'
+            'This button writes a desktop entry under ~/.config/autostart/ so the same '
+            'xgamma command runs at the next login.'
+        )
 
     def _onApplicationFocusChanged(self, old, new):
         """Keep activeChannel aligned with keyboard focus (PRD 3.5, 3.11.7)."""

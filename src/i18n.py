@@ -104,7 +104,17 @@ _RU: dict[tuple[str, str], str] = {
         "1.0 при совпадении; среднее при различии R/G/B; перетаскивание «Все» выравнивает каналы."
     ),
     ("GammaMainWindow", "Reset"): "Сброс",
-    ("GammaMainWindow", "Apply"): "Применить",
+    ("GammaMainWindow", "Save to autostart"): "Сохранить в автозапуск",
+    (
+        "GammaMainWindow",
+        "Moving the sliders already applies gamma to the display.\n"
+        "This button writes a desktop entry under ~/.config/autostart/ so the same "
+        "xgamma command runs at the next login.",
+    ): (
+        "Движение ползунков уже сразу применяет гамму к дисплею.\n"
+        "Эта кнопка записывает desktop-файл в ~/.config/autostart/, чтобы та же команда xgamma "
+        "выполнилась при следующем входе в сеанс."
+    ),
     ("GammaMainWindow", "Loading initial settings…"): "Загрузка начальных параметров…",
     ("GammaMainWindow", " Environment may limit gamma — see the notice above."): (
         " Окружение может ограничивать гамму — см. уведомление выше."
