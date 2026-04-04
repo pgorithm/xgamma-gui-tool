@@ -74,16 +74,16 @@ _RU: dict[tuple[str, str], str] = {
         "hold Shift for larger steps.",
     ): (
         "1.0 означает отсутствие изменений для этого канала. "
-        "Используйте красный, зелёный и синий для исправления оттенка и баланса белого; "
+        "Для коррекции оттенка и баланса белого используйте «Красный», «Зелёный» и «Синий»; "
         "«Все» — чтобы применить один коэффициент ко всем каналам. "
-        "Выберите строку (Tab или клик по подписи), затем ←/→ для изменения гаммы; "
-        "удерживайте Shift для большего шага."
+        "Перейдите на нужную строку (Tab или щелчок по подписи), затем настраивайте гамму "
+        "клавишами ←/→; удерживайте Shift для более крупного шага."
     ),
     (
         "GammaMainWindow",
         "1.0 neutral; R/G/B for cast, All to scale all channels.",
     ): (
-        "1.0 — нейтрально; R/G/B для оттенка, «Все» для масштаба всех каналов."
+        "1.0 — нейтрально; R/G/B — оттенок, «Все» — масштаб всех каналов."
     ),
     (
         "GammaMainWindow",
@@ -92,16 +92,16 @@ _RU: dict[tuple[str, str], str] = {
         "Moving the All slider sets all three channels to the same gamma value. "
         "Focus this row (Tab or click the label), then use ←/→; hold Shift for larger steps.",
     ): (
-        "Когда красный, зелёный и синий совпадают, 1.0 нейтрально для всех. "
-        "Пока они различаются, здесь показано среднее арифметическое. "
-        "Перемещение ползунка «Все» выставляет одинаковую гамму для всех трёх каналов. "
-        "Выберите строку (Tab или клик по подписи), затем ←/→; удерживайте Shift для большего шага."
+        "Когда «Красный», «Зелёный» и «Синий» совпадают, 1.0 нейтральна для всех каналов. "
+        "Пока значения различаются, в этой строке показано среднее арифметическое. "
+        "Перемещение ползунка «Все» задаёт одинаковую гамму для всех трёх каналов. "
+        "Перейдите на строку (Tab или щелчок по подписи), затем ←/→; удерживайте Shift для более крупного шага."
     ),
     (
         "GammaMainWindow",
         "1.0 when matched; average when R/G/B differ; All drag equalizes channels.",
     ): (
-        "1.0 при совпадении; среднее при различии R/G/B; перетаскивание «Все» выравнивает каналы."
+        "1.0 при совпадении каналов; среднее при различии R/G/B; ползунок «Все» выравнивает каналы."
     ),
     ("GammaMainWindow", "Reset"): "Сброс",
     ("GammaMainWindow", "Save to autostart"): "Сохранить в автозапуск",
@@ -111,9 +111,9 @@ _RU: dict[tuple[str, str], str] = {
         "This button writes a desktop entry under ~/.config/autostart/ so the same "
         "xgamma command runs at the next login.",
     ): (
-        "Движение ползунков уже сразу применяет гамму к дисплею.\n"
-        "Эта кнопка записывает desktop-файл в ~/.config/autostart/, чтобы та же команда xgamma "
-        "выполнилась при следующем входе в сеанс."
+        "Ползунки уже сразу меняют гамму на дисплее.\n"
+        "Эта кнопка создаёт запись desktop в ~/.config/autostart/, чтобы при следующем входе "
+        "в сеанс выполнилась та же команда xgamma."
     ),
     ("GammaMainWindow", "Loading initial settings…"): "Загрузка начальных параметров…",
     ("GammaMainWindow", " Environment may limit gamma — see the notice above."): (
@@ -197,7 +197,7 @@ _RU: dict[tuple[str, str], str] = {
         "Could not finish reset — gamma apply and autostart removal failed. "
         "Details are in the log.",
     ): (
-        "Не удалось завершить сброс — сбой применения гаммы и удаления автозапуска. "
+        "Не удалось завершить сброс: не удалось применить гамму и убрать запись автозапуска. "
         "Подробности в журнале."
     ),
     ("GammaMainWindow", "Reset to defaults and removed from autostart"): (
@@ -212,12 +212,14 @@ _RU: dict[tuple[str, str], str] = {
     (
         "environment",
         "VM environment may limit gamma adjustment.",
-    ): "Виртуальная машина может ограничивать настройку гаммы.",
+    ): "В среде виртуальной машины настройка гаммы может быть ограничена.",
     (
         "environment",
         "HDR or 10-bit mode may disable manual gamma adjustment.",
-    ): "Режим HDR или 10 бит может отключить ручную настройку гаммы.",
-    ("AboutDialog", "About xgamma GUI Tool"): "О программе — xgamma GUI Tool",
+    ): (
+        "Режим HDR или глубина цвета 10 бит может сделать ручную настройку гаммы недоступной."
+    ),
+    ("AboutDialog", "About xgamma GUI Tool"): "О программе: xgamma GUI Tool",
     ("AboutDialog", "xgamma GUI Tool"): "xgamma GUI Tool",
     ("AboutDialog", "Version:"): "Версия:",
     ("AboutDialog", "Project on GitHub"): "Проект на GitHub",
@@ -230,16 +232,17 @@ _RU: dict[tuple[str, str], str] = {
         "use All when you want one factor applied to every channel. "
         "Small moves and the preview pattern are safer than pushing sliders to extremes.",
     ): (
-        "Канал гаммы 1.000 - значение по умолчанию, оно не осветляет и не затемняет этот цвет. "
-        "Рекомендуется не устанавливать любое из значений выше 1.000 "
-        "и оставлять хотя бы одному каналу значение 1.000. "
+        "Гамма 1.0 для канала нейтральна: основной цвет не становится ни светлее, ни темнее. "
+        "Настраивайте «Красный», «Зелёный» и «Синий», чтобы убрать цветовой оттенок или выровнять баланс белого; "
+        "выберите «Все», если нужен один коэффициент для всех каналов. "
+        "Небольшие сдвиги и предпросмотр безопаснее, чем уводить ползунки к предельным значениям."
     ),
     ("SettingsDialog", "Settings"): "Настройки",
     ("SettingsDialog", "About"): "О программе",
     (
         "SettingsDialog",
         "Open version and project information",
-    ): "Открыть сведения о проекте",
+    ): "Открыть сведения о версии и проекте",
     ("SettingsDialog", "Language:"): "Язык интерфейса:",
     ("SettingsDialog", "OK"): "ОК",
     ("SettingsDialog", "Apply"): "Применить",
