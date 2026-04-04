@@ -124,6 +124,10 @@ class GammaCore:
         """Return captured stdout/stderr from the latest applyGamma run."""
         return self.lastApplyRawOutput
 
+    def set_last_apply_raw_output(self, text):
+        """Sync last apply diagnostics on the GUI thread after async apply (SEC-004)."""
+        self.lastApplyRawOutput = text if text is not None else ''
+
     def _prepare_gamma_scalar(self, value):
         """
         Map one user/API gamma to the product range [MIN_GAMMA, MAX_GAMMA].

@@ -15,7 +15,18 @@ from PyQt5.QtWidgets import (
     QSizePolicy, QApplication, QDialog,
     QDialogButtonBox, QFrame, QComboBox,
 )
-from PyQt5.QtCore import Qt, QEvent, QSize, QTimer, QRectF, QCoreApplication
+from PyQt5.QtCore import (
+    Qt,
+    QEvent,
+    QSize,
+    QTimer,
+    QRectF,
+    QCoreApplication,
+    QObject,
+    QThread,
+    pyqtSignal,
+    pyqtSlot,
+)
 from PyQt5.QtGui import (
     QPixmap, QFontMetrics, QPainter, QPen, QBrush,
     QColor, QIcon, QDoubleValidator
@@ -25,7 +36,6 @@ from .environment_checks import collect_environment_warnings
 from .reference_image import ReferenceImageGenerator
 from .config_manager import ConfigManager
 from .version_info import __version__ as APP_VERSION
-from PyQt5.QtCore import QThread, pyqtSignal
 from .i18n import (
     apply_ui_language,
     iter_ui_language_choices,
@@ -61,6 +71,40 @@ class InitializationWorker(QThread):
             'gamma_read_source': self.gammaCore.getLastGammaReadSource(),
             'gamma_read_clamped': self.gammaCore.getLastGammaReadClamped(),
         })
+
+
+class GammaApplyWorker(QObject):
+    """
+    Runs ``GammaCore.applyGamma`` off the GUI thread so subprocess timeouts
+    do not freeze Qt (PRD SEC-004).
+    """
+
+    finished = pyqtSignal(int, bool, str)
+    request = pyqtSignal(int, object)
+
+    def __init__(self, gamma_core, parent=None):
+        super().__init__(parent)
+        self._gamma_core = gamma_core
+
+    @pyqtSlot(int, object)
+    def _execute_apply(self, seq, spec):
+        if not isinstance(spec, dict):
+            self.finished.emit(seq, False, 'invalid apply spec')
+            return
+        try:
+            if 'overall' in spec:
+                ok = self._gamma_core.applyGamma(overall=spec['overall'])
+            else:
+                ok = self._gamma_core.applyGamma(
+                    red=spec.get('red'),
+                    green=spec.get('green'),
+                    blue=spec.get('blue'),
+                )
+            raw = self._gamma_core.getLastApplyRawOutput()
+        except Exception as error:
+            ok = False
+            raw = str(error)
+        self.finished.emit(seq, ok, raw)
 
 
 def _create_info_icon():
@@ -290,7 +334,18 @@ class GammaMainWindow(QMainWindow):
         self.pendingGamma = None
         # `pendingGamma` хранит значения гаммы, которые ожидают применения таймером,
         # позволяя накапливать изменения перед их фактическим использованием.
-          
+        self._gamma_apply_dispatch_seq = 0
+        self._apply_requests = {}
+        self._gamma_apply_thread = QThread(self)
+        self._gamma_apply_worker = GammaApplyWorker(self.gammaCore)
+        self._gamma_apply_worker.moveToThread(self._gamma_apply_thread)
+        self._gamma_apply_worker.request.connect(
+            self._gamma_apply_worker._execute_apply,
+            Qt.QueuedConnection,
+        )
+        self._gamma_apply_worker.finished.connect(self._onGammaApplyFinished)
+        self._gamma_apply_thread.start()
+
         self.setWindowTitle(self.tr('xgamma GUI Tool'))
         self.setMinimumSize(600, 650)
         
@@ -772,9 +827,12 @@ class GammaMainWindow(QMainWindow):
         )
         self.referenceLabel.setPixmap(scaled)
 
-    def _showGammaApplyFailure(self):
+    def _showGammaApplyFailure(self, detail=None):
         """User-visible status when xgamma apply fails; full output kept in GammaCore."""
-        detail = self.gammaCore.getLastApplyRawOutput().strip()
+        if detail is None:
+            detail = self.gammaCore.getLastApplyRawOutput().strip()
+        else:
+            detail = str(detail).strip()
         base = self.tr('Could not apply gamma to the display.')
         if detail:
             one_line = ' '.join(detail.split())
@@ -783,6 +841,50 @@ class GammaMainWindow(QMainWindow):
             self.statusBar.showMessage('{} {}'.format(base, one_line), 10000)
         else:
             self.statusBar.showMessage(base, 8000)
+
+    def _dispatchGammaApply(self, spec, from_reset=False):
+        """Queue ``applyGamma`` on the worker thread (SEC-004)."""
+        self._gamma_apply_dispatch_seq += 1
+        seq = self._gamma_apply_dispatch_seq
+        self._apply_requests[seq] = {'from_reset': from_reset}
+        self._gamma_apply_worker.request.emit(seq, spec)
+
+    def _onGammaApplyFinished(self, seq, ok, raw):
+        """Handle subprocess completion on the GUI thread."""
+        if seq != self._gamma_apply_dispatch_seq:
+            self._apply_requests.pop(seq, None)
+            return
+        ctx = self._apply_requests.pop(seq, None) or {}
+        from_reset = ctx.get('from_reset', False)
+        self.gammaCore.set_last_apply_raw_output(raw)
+
+        if from_reset:
+            remove_res = self.configManager.removeFromAutostart()
+            if not ok:
+                self._showGammaApplyFailure(raw)
+            if not remove_res.ok:
+                tip = self.statusBar.currentMessage()
+                suffix = self.tr(' — Autostart: {}.').format(remove_res.error_message)
+                self.statusBar.showMessage(
+                    (tip + suffix)
+                    if tip
+                    else self.tr('Could not remove autostart ({}).').format(
+                        remove_res.error_message
+                    ),
+                    12000,
+                )
+            elif ok:
+                if remove_res.removed:
+                    self.statusBar.showMessage(
+                        self.tr('Reset to defaults and removed from autostart'),
+                        3000,
+                    )
+                else:
+                    self.statusBar.showMessage(self.tr('Reset to defaults'), 3000)
+            self._updateReferenceImage(self.currentGamma)
+            self.isUpdating = False
+        elif not ok:
+            self._showGammaApplyFailure(raw)
 
     def _applyPendingGamma(self):
         """Apply pending gamma to the display via GammaCore.
@@ -795,17 +897,14 @@ class GammaMainWindow(QMainWindow):
         if self.pendingGamma is None:
             return
 
-        if 'overall' in self.pendingGamma:
-            ok = self.gammaCore.applyGamma(overall=self.pendingGamma['overall'])
-        else:
-            ok = self.gammaCore.applyGamma(
-                red=self.pendingGamma.get('red'),
-                green=self.pendingGamma.get('green'),
-                blue=self.pendingGamma.get('blue')
-            )
-        if not ok:
-            self._showGammaApplyFailure()
+        spec = dict(self.pendingGamma)
         self.pendingGamma = None
+        self._dispatchGammaApply(spec, from_reset=False)
+
+    def closeEvent(self, event):
+        self._gamma_apply_thread.quit()
+        self._gamma_apply_thread.wait(8000)
+        super().closeEvent(event)
 
     def _sliderValueToGamma(self, sliderValue):
         """
@@ -1070,38 +1169,12 @@ class GammaMainWindow(QMainWindow):
         for slider in self.sliders.values():
             slider.blockSignals(False)
 
-        # Применяем гамму по умолчанию сразу, чтобы результат сброса был виден.
+        # Применяем гамму по умолчанию в фоне; autostart и статус — в `_onGammaApplyFinished`.
         self.currentGamma = {'red': 1.0, 'green': 1.0, 'blue': 1.0}
-        # Отменяем отложенное применение гаммы — сброс должен быть немедленным.
+        # Отменяем отложенное применение гаммы — сброс не должен конкурировать с таймером.
         self.gammaApplyTimer.stop()
         self.pendingGamma = None
-        apply_ok = self.gammaCore.applyGamma(overall=1.0)
-
-        remove_res = self.configManager.removeFromAutostart()
-        if not apply_ok:
-            self._showGammaApplyFailure()
-        if not remove_res.ok:
-            tip = self.statusBar.currentMessage()
-            suffix = self.tr(' — Autostart: {}.').format(remove_res.error_message)
-            self.statusBar.showMessage(
-                (tip + suffix)
-                if tip
-                else self.tr('Could not remove autostart ({}).').format(
-                    remove_res.error_message
-                ),
-                12000,
-            )
-        elif apply_ok:
-            if remove_res.removed:
-                self.statusBar.showMessage(
-                    self.tr('Reset to defaults and removed from autostart'),
-                    3000,
-                )
-            else:
-                self.statusBar.showMessage(self.tr('Reset to defaults'), 3000)
-
-        self._updateReferenceImage(self.currentGamma)
-        self.isUpdating = False
+        self._dispatchGammaApply({'overall': 1.0}, from_reset=True)
 
     def _onSaveClicked(self):
         """Handle save button click."""
