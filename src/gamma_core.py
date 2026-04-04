@@ -23,6 +23,8 @@ class GammaCore:
         self.xgammaPath = self._findXgamma()
         self.lastRawOutput = ''  # Последний stdout от xgamma, для отладки
         self.lastApplyRawOutput = ''  # Вывод последнего вызова xgamma при apply (успех или сбой)
+        # Источник значений при последнем getCurrentGamma: xgamma | xrandr | default
+        self.lastGammaReadSource = 'default'
     
     def _findXgamma(self):
         """
@@ -52,6 +54,7 @@ class GammaCore:
         """
         if not self.isXgammaAvailable():
             self.lastRawOutput = 'xgamma not available'  # Нет бинарника — нет вывода
+            self.lastGammaReadSource = 'default'
             return self._defaultGammaValues()
         
         try:
@@ -68,14 +71,17 @@ class GammaCore:
             self.lastRawOutput = rawOutput  # Сохраняем сырой вывод для дальнейшего анализа
             parsedGamma = self._parseGammaFromString(rawOutput)
             if parsedGamma:
+                self.lastGammaReadSource = 'xgamma'
                 return parsedGamma
             
             # Пробуем получить данные через xrandr как запасной вариант
             fallbackGamma = self._readGammaFromXrandr()
             if fallbackGamma:
                 self.lastRawOutput = 'xrandr fallback: {}'.format(fallbackGamma)
+                self.lastGammaReadSource = 'xrandr'
                 return fallbackGamma
             
+            self.lastGammaReadSource = 'default'
             return self._defaultGammaValues()
         except (subprocess.TimeoutExpired, ValueError, AttributeError, Exception) as error:
             # При любой ошибке пробуем fallback, иначе значения по умолчанию
@@ -83,12 +89,18 @@ class GammaCore:
             fallbackGamma = self._readGammaFromXrandr()
             if fallbackGamma:
                 self.lastRawOutput = 'xrandr fallback after error: {}'.format(fallbackGamma)
+                self.lastGammaReadSource = 'xrandr'
                 return fallbackGamma
+            self.lastGammaReadSource = 'default'
             return self._defaultGammaValues()
 
     def getLastRawOutput(self):
         """Return raw stdout from latest xgamma call."""
         return self.lastRawOutput
+
+    def getLastGammaReadSource(self):
+        """How current gamma values were obtained: xgamma, xrandr, or default."""
+        return self.lastGammaReadSource
 
     def getLastApplyRawOutput(self):
         """Return captured stdout/stderr from the latest applyGamma run."""

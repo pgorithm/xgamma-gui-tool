@@ -6,6 +6,7 @@ user interactions with the `GammaCore` and `ConfigManager` to provide
 a seamless gamma adjustment experience.
 """
 
+import logging
 import subprocess
 
 from PyQt5.QtWidgets import (
@@ -23,6 +24,8 @@ from .gamma_core import GammaCore
 from .reference_image import ReferenceImageGenerator
 from .config_manager import ConfigManager
 from PyQt5.QtCore import QThread, pyqtSignal
+
+_logger = logging.getLogger(__name__)
 
 
 class InitializationWorker(QThread):
@@ -122,7 +125,7 @@ class InitializationWorker(QThread):
         self.finished.emit({
             'gamma': currentGamma,
             'warnings': warningMessages,
-            'raw_output': self.gammaCore.getLastRawOutput()
+            'gamma_read_source': self.gammaCore.getLastGammaReadSource(),
         })
 
 
@@ -441,7 +444,7 @@ class GammaMainWindow(QMainWindow):
         """
         current = results['gamma']
         self.warningMessages = results['warnings']
-        rawOutput = results['raw_output']
+        read_source = results.get('gamma_read_source', 'default')
 
         self.isUpdating = True
 
@@ -470,11 +473,31 @@ class GammaMainWindow(QMainWindow):
             slider.blockSignals(False)
 
         self._updateWarningIndicator()
-        if rawOutput:
-            self.statusBar.showMessage(rawOutput, 3000)
-        else:
+        raw_diag = self.gammaCore.getLastRawOutput().strip()
+        if read_source == 'xgamma':
             self.statusBar.showMessage('Ready', 3000)
-        
+        elif read_source == 'xrandr':
+            self.statusBar.showMessage(
+                'Gamma from xrandr (xgamma output was not recognized).',
+                8000,
+            )
+            if raw_diag:
+                _logger.info(
+                    'xgamma diagnostic (truncated): %s',
+                    raw_diag[:500] + ('...' if len(raw_diag) > 500 else ''),
+                )
+        else:
+            self.statusBar.showMessage(
+                'Could not read display gamma; defaults (1.0) shown. '
+                'Check DISPLAY and xgamma.',
+                10000,
+            )
+            if raw_diag:
+                _logger.warning(
+                    'Gamma read failed; diagnostic (truncated): %s',
+                    raw_diag[:500] + ('...' if len(raw_diag) > 500 else ''),
+                )
+
         self.isUpdating = False
 
     def _updateReferenceImage(self, gammaValues=None):
