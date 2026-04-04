@@ -6,9 +6,10 @@ availability, executing gamma correction commands, and parsing current
 gamma values from the system.
 """
 
-import subprocess
-import shutil
+import math
 import re
+import shutil
+import subprocess
 
 
 class GammaCore:
@@ -17,6 +18,7 @@ class GammaCore:
     DEFAULT_GAMMA = 1.000
     MIN_GAMMA = 0.010
     MAX_GAMMA = 5.000
+    # nan/inf: refuse to build argv (no silent substitution); see _prepare_gamma_scalar.
     
     def __init__(self):
         """Initialize GammaCore and check xgamma availability."""
@@ -105,6 +107,21 @@ class GammaCore:
     def getLastApplyRawOutput(self):
         """Return captured stdout/stderr from the latest applyGamma run."""
         return self.lastApplyRawOutput
+
+    def _prepare_gamma_scalar(self, value):
+        """
+        Map one user/API gamma to the product range [MIN_GAMMA, MAX_GAMMA].
+
+        Finite out-of-range values are clamped. nan/inf and non-numeric inputs
+        are rejected (return None) so they never reach xgamma argv.
+        """
+        try:
+            x = float(value)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(x):
+            return None
+        return max(self.MIN_GAMMA, min(self.MAX_GAMMA, x))
     
     def applyGamma(self, red=None, green=None, blue=None, overall=None):
         """
@@ -127,16 +144,31 @@ class GammaCore:
         args = [self.xgammaPath]
         
         if overall is not None:
-            # Если указано общее значение гаммы, применяем его ко всем цветовым каналам для равномерной коррекции.
-            args.extend(['-gamma', str(overall)])
+            prepared = self._prepare_gamma_scalar(overall)
+            if prepared is None:
+                self.lastApplyRawOutput = 'invalid gamma value (non-finite or non-numeric)'
+                return False
+            args.extend(['-gamma', str(prepared)])
         else:
             # Если общее значение не указано, применяем индивидуальные значения гаммы для каждого запрошенного цветового канала.
             if red is not None:
-                args.extend(['-rgamma', str(red)])
+                prepared = self._prepare_gamma_scalar(red)
+                if prepared is None:
+                    self.lastApplyRawOutput = 'invalid gamma value (non-finite or non-numeric)'
+                    return False
+                args.extend(['-rgamma', str(prepared)])
             if green is not None:
-                args.extend(['-ggamma', str(green)])
+                prepared = self._prepare_gamma_scalar(green)
+                if prepared is None:
+                    self.lastApplyRawOutput = 'invalid gamma value (non-finite or non-numeric)'
+                    return False
+                args.extend(['-ggamma', str(prepared)])
             if blue is not None:
-                args.extend(['-bgamma', str(blue)])
+                prepared = self._prepare_gamma_scalar(blue)
+                if prepared is None:
+                    self.lastApplyRawOutput = 'invalid gamma value (non-finite or non-numeric)'
+                    return False
+                args.extend(['-bgamma', str(prepared)])
         
         try:
             result = subprocess.run(
@@ -176,14 +208,26 @@ class GammaCore:
         parts = [self.xgammaPath]
         
         if overall is not None:
-            parts.extend(['-gamma', str(overall)])
+            prepared = self._prepare_gamma_scalar(overall)
+            if prepared is None:
+                return ""
+            parts.extend(['-gamma', str(prepared)])
         else:
             if red is not None:
-                parts.extend(['-rgamma', str(red)])
+                prepared = self._prepare_gamma_scalar(red)
+                if prepared is None:
+                    return ""
+                parts.extend(['-rgamma', str(prepared)])
             if green is not None:
-                parts.extend(['-ggamma', str(green)])
+                prepared = self._prepare_gamma_scalar(green)
+                if prepared is None:
+                    return ""
+                parts.extend(['-ggamma', str(prepared)])
             if blue is not None:
-                parts.extend(['-bgamma', str(blue)])
+                prepared = self._prepare_gamma_scalar(blue)
+                if prepared is None:
+                    return ""
+                parts.extend(['-bgamma', str(prepared)])
         
         return ' '.join(parts)
 
