@@ -6,6 +6,7 @@ user interactions with the `GammaCore` and `ConfigManager` to provide
 a seamless gamma adjustment experience.
 """
 
+import html
 import logging
 import subprocess
 
@@ -13,7 +14,7 @@ from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSlider, QLabel, QPushButton, QLineEdit, QStatusBar,
     QSizePolicy, QApplication, QDialog,
-    QDialogButtonBox, QCheckBox
+    QDialogButtonBox, QCheckBox, QFrame
 )
 from PyQt5.QtCore import Qt, QEvent, QSize, QTimer, QRectF
 from PyQt5.QtGui import (
@@ -289,6 +290,7 @@ class GammaMainWindow(QMainWindow):
         # что позволяет направленно изменять значения гаммы.
         self.widgetChannel = {}
         self.warningMessages = []
+        self._environmentBannerDismissed = False
         self.currentGamma = {'red': 1.0, 'green': 1.0, 'blue': 1.0}
         self._gammaControlsReady = False
         
@@ -333,6 +335,44 @@ class GammaMainWindow(QMainWindow):
         topPanel.addWidget(self.warningIconLabel)
         topPanel.addWidget(self.settingsButton)
         mainLayout.addLayout(topPanel)
+
+        # PRD 3.11.5 / 3.8: visible environment notice (VM/HDR), not only corner icon.
+        self._environmentBannerFrame = QFrame()
+        self._environmentBannerFrame.setObjectName('environmentWarningBanner')
+        self._environmentBannerFrame.setFrameShape(QFrame.StyledPanel)
+        self._environmentBannerFrame.setVisible(False)
+        self._environmentBannerFrame.setStyleSheet(
+            'QFrame#environmentWarningBanner {'
+            ' background-color: #fff8e1;'
+            ' border: 1px solid #d4a017;'
+            ' border-radius: 6px;'
+            ' padding: 2px;'
+            '}'
+        )
+        bannerLayout = QHBoxLayout(self._environmentBannerFrame)
+        bannerLayout.setContentsMargins(10, 8, 8, 8)
+        bannerLayout.setSpacing(10)
+        bannerIcon = QLabel()
+        bannerIcon.setPixmap(self._createWarningIcon())
+        bannerIcon.setFixedSize(28, 28)
+        bannerIcon.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+        bannerLayout.addWidget(bannerIcon, 0, Qt.AlignTop)
+        self._environmentBannerLabel = QLabel()
+        self._environmentBannerLabel.setTextFormat(Qt.RichText)
+        self._environmentBannerLabel.setWordWrap(True)
+        self._environmentBannerLabel.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self._environmentBannerLabel.setSizePolicy(
+            QSizePolicy.Expanding,
+            QSizePolicy.Minimum,
+        )
+        bannerLayout.addWidget(self._environmentBannerLabel, 1)
+        dismissBanner = QPushButton('Dismiss')
+        dismissBanner.setFlat(True)
+        dismissBanner.setCursor(Qt.PointingHandCursor)
+        dismissBanner.setToolTip('Hide this notice. The warning icon stays for details.')
+        dismissBanner.clicked.connect(self._dismissEnvironmentBanner)
+        bannerLayout.addWidget(dismissBanner, 0, Qt.AlignTop)
+        mainLayout.addWidget(self._environmentBannerFrame)
         
         # Инициализируем генератор эталонного изображения, который будет использоваться для визуализации текущих значений гаммы.
         self.imageGenerator = ReferenceImageGenerator(600)
@@ -505,13 +545,19 @@ class GammaMainWindow(QMainWindow):
         self._updateReferenceImage(self.currentGamma)
 
         self._updateWarningIndicator()
+        self._updateEnvironmentBanner()
         raw_diag = self.gammaCore.getLastRawOutput().strip()
+        env_hint = (
+            ' Environment may limit gamma — see the notice above.'
+            if self.warningMessages
+            else ''
+        )
         if read_source == 'xgamma':
-            self.statusBar.showMessage('Ready', 3000)
+            self.statusBar.showMessage('Ready{}'.format(env_hint), 8000 if env_hint else 3000)
         elif read_source == 'xrandr':
             self.statusBar.showMessage(
-                'Gamma from xrandr (xgamma output was not recognized).',
-                8000,
+                'Gamma from xrandr (xgamma output was not recognized).{}'.format(env_hint),
+                12000 if env_hint else 8000,
             )
             if raw_diag:
                 _logger.info(
@@ -521,8 +567,8 @@ class GammaMainWindow(QMainWindow):
         else:
             self.statusBar.showMessage(
                 'Could not read display gamma; defaults (1.0) shown. '
-                'Check DISPLAY and xgamma.',
-                10000,
+                'Check DISPLAY and xgamma.{}'.format(env_hint),
+                14000 if env_hint else 10000,
             )
             if raw_diag:
                 _logger.warning(
@@ -761,6 +807,21 @@ class GammaMainWindow(QMainWindow):
             self.warningIconLabel.setToolTip(tooltip)
         else:
             self.warningIconLabel.setToolTip('')
+
+    def _updateEnvironmentBanner(self):
+        """Show session banner with full VM/HDR text until dismissed (PRD 3.11.5)."""
+        if not self.warningMessages or self._environmentBannerDismissed:
+            self._environmentBannerFrame.setVisible(False)
+            return
+        body = '<br/>'.join(html.escape(m) for m in self.warningMessages)
+        self._environmentBannerLabel.setText(
+            '<b>Display environment</b><br/>{}'.format(body)
+        )
+        self._environmentBannerFrame.setVisible(True)
+
+    def _dismissEnvironmentBanner(self):
+        self._environmentBannerDismissed = True
+        self._environmentBannerFrame.setVisible(False)
 
     def _onValueInputChanged(self, channel):
         """
