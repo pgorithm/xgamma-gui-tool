@@ -55,7 +55,8 @@ def main():
 
     # Создаем QApplication
     app = QApplication(sys.argv)
-    app.setApplicationName('xgamma GUI Tool')
+    app.setOrganizationName("xgamma_gui_tool")
+    app.setApplicationName("xgamma GUI Tool")
     icon_path = _application_icon_path()
     if icon_path is not None:
         app.setWindowIcon(QIcon(str(icon_path)))

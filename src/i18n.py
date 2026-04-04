@@ -5,7 +5,16 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from PyQt5.QtCore import QLocale, QTranslator
+from PyQt5.QtCore import QCoreApplication, QLocale, QSettings, QTranslator
+
+# Stored in QSettings under SETTINGS_KEY_UI_LANGUAGE (default: follow system / LANG — PRD 3.11.9).
+UI_LANGUAGE_SYSTEM = "system"
+UI_LANGUAGE_EN = "en"
+UI_LANGUAGE_RU = "ru"
+QM_LANGUAGE_PREFIX = "qm:"
+
+SETTINGS_KEY_UI_LANGUAGE = "ui_language"
+_INSTALLED_TRANSLATORS_ATTR = "_xgamma_installed_translators"
 
 
 def translations_dir() -> Path:
@@ -166,6 +175,9 @@ _RU: dict[tuple[str, str], str] = {
         "SettingsDialog",
         "Open version and project information",
     ): "Открыть версию и сведения о проекте",
+    ("i18n", "As in system"): "Как в системе",
+    ("i18n", "English"): "Английский",
+    ("i18n", "Russian"): "Русский",
 }
 
 
@@ -179,18 +191,110 @@ class EmbeddedRussianTranslator(QTranslator):
         return _RU.get(key, "")
 
 
-def install_translators(app) -> None:
-    """Install Qt translators before creating UI. Honors Russian locale / LANG=ru."""
-    if not want_russian():
-        return
+def read_ui_language_setting() -> str:
+    """Return persisted UI language id, or UI_LANGUAGE_SYSTEM if unset (policy 3.11.9)."""
+    raw = QSettings().value(SETTINGS_KEY_UI_LANGUAGE, UI_LANGUAGE_SYSTEM)
+    if raw is None:
+        return UI_LANGUAGE_SYSTEM
+    s = str(raw).strip()
+    if not s:
+        return UI_LANGUAGE_SYSTEM
+    return s
 
+
+def write_ui_language_setting(language_id: str) -> None:
+    """Persist UI language (system / en / ru / qm:file.qm)."""
+    s = QSettings()
+    s.setValue(SETTINGS_KEY_UI_LANGUAGE, language_id)
+
+
+def _ru_translator_instance() -> QTranslator:
     qm_path = translations_dir() / "xgamma_gui_ru.qm"
-    loaded = False
     if qm_path.is_file():
         tr_file = QTranslator()
         if tr_file.load(str(qm_path)):
-            app.installTranslator(tr_file)
-            loaded = True
+            return tr_file
+    return EmbeddedRussianTranslator()
 
-    if not loaded:
-        app.installTranslator(EmbeddedRussianTranslator())
+
+def remove_translators(app) -> None:
+    """Remove translators this module installed (for reinstall or shutdown)."""
+    installed = getattr(app, _INSTALLED_TRANSLATORS_ATTR, None)
+    if not installed:
+        return
+    for tr in installed:
+        app.removeTranslator(tr)
+    setattr(app, _INSTALLED_TRANSLATORS_ATTR, [])
+
+
+def _append_translator(app, tr: QTranslator, bucket: list) -> None:
+    app.installTranslator(tr)
+    bucket.append(tr)
+
+
+def _effective_language_id(stored: str) -> str:
+    """Resolve UI_LANGUAGE_SYSTEM to en or ru based on locale / LANG."""
+    if stored != UI_LANGUAGE_SYSTEM:
+        return stored
+    return UI_LANGUAGE_RU if want_russian() else UI_LANGUAGE_EN
+
+
+def _install_for_language_id(app, language_id: str, bucket: list) -> None:
+    if language_id == UI_LANGUAGE_EN:
+        return
+    if language_id == UI_LANGUAGE_RU:
+        _append_translator(app, _ru_translator_instance(), bucket)
+        return
+    if language_id.startswith(QM_LANGUAGE_PREFIX):
+        name = language_id[len(QM_LANGUAGE_PREFIX) :]
+        if not name or "/" in name or "\\" in name or name.startswith(".."):
+            return
+        path = translations_dir() / name
+        if path.is_file():
+            tr_file = QTranslator()
+            if tr_file.load(str(path)):
+                _append_translator(app, tr_file, bucket)
+
+
+def install_translators(app) -> None:
+    """Install translators before creating UI from QSettings (TASK-015 / PRD 3.11.9, 3.11.12)."""
+    remove_translators(app)
+    stored = read_ui_language_setting()
+    bucket: list = []
+    if stored == UI_LANGUAGE_SYSTEM:
+        _install_for_language_id(app, _effective_language_id(stored), bucket)
+    else:
+        _install_for_language_id(app, stored, bucket)
+    setattr(app, _INSTALLED_TRANSLATORS_ATTR, bucket)
+
+
+def reinstall_translators(app) -> None:
+    """Re-read settings and replace installed translators (e.g. after changing language)."""
+    install_translators(app)
+
+
+def _label_for_extra_qm(path: Path) -> str:
+    stem = path.stem
+    prefix = "xgamma_gui_"
+    code = stem[len(prefix) :] if stem.startswith(prefix) else stem
+    if len(code) >= 2:
+        loc = QLocale(code)
+        native = loc.nativeLanguageName()
+        if native:
+            return f"{native} ({code})"
+    return stem
+
+
+def iter_ui_language_choices():
+    """Yield (language_id, user-visible label) for Settings / menus; includes dynamic .qm (TASK-015)."""
+    yield (
+        UI_LANGUAGE_SYSTEM,
+        QCoreApplication.translate("i18n", "As in system"),
+    )
+    yield (UI_LANGUAGE_EN, QCoreApplication.translate("i18n", "English"))
+    yield (UI_LANGUAGE_RU, QCoreApplication.translate("i18n", "Russian"))
+    for path in sorted(translations_dir().glob("*.qm")):
+        if path.name.lower() == "xgamma_gui_ru.qm":
+            continue
+        qid = f"{QM_LANGUAGE_PREFIX}{path.name}"
+        yield (qid, _label_for_extra_qm(path))
