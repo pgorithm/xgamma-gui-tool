@@ -86,7 +86,7 @@
         "Шаг 3: после загрузки слайдеры совпадают с выводом xgamma -display :0 -quiet (или эквивалент)"
       ],
       "dependencies": [],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-005",

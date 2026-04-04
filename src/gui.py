@@ -281,6 +281,7 @@ class GammaMainWindow(QMainWindow):
         self.widgetChannel = {}
         self.warningMessages = []
         self.currentGamma = {'red': 1.0, 'green': 1.0, 'blue': 1.0}
+        self._gammaControlsReady = False
         
         self.imageUpdateTimer = QTimer()
         self.imageUpdateTimer.setSingleShot(True)
@@ -331,7 +332,7 @@ class GammaMainWindow(QMainWindow):
         self.referenceLabel.setMinimumHeight(self.imageGenerator.calculatedHeight - 10)
         self.referenceLabel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.referenceLabel.setScaledContents(True)
-        self._updateReferenceImage(self.currentGamma)
+        self.referenceLabel.setText('Reading display gamma…')
         mainLayout.addWidget(self.referenceLabel)
         
         # Инициализируем ползунки и поля ввода значений для каждого цветового канала, чтобы пользователь мог интерактивно управлять гаммой.
@@ -368,6 +369,7 @@ class GammaMainWindow(QMainWindow):
             slider.setMaximum(500)  # 5.0 * 100
             slider.setValue(100)  # 1.0 * 100
             slider.setTickPosition(QSlider.NoTicks)
+            slider.setEnabled(False)
             slider.valueChanged.connect(
                 lambda value, ch=channel: self._onSliderChanged(ch, value)
             )
@@ -379,7 +381,9 @@ class GammaMainWindow(QMainWindow):
             valueInput = QLineEdit()
             valueInput.setMinimumWidth(inputFieldWidth)
             valueInput.setMaximumWidth(inputFieldWidth)
-            valueInput.setText('1.000')
+            valueInput.setText('')
+            valueInput.setPlaceholderText('…')
+            valueInput.setEnabled(False)
             valueInput.setAlignment(Qt.AlignCenter)
             # Ограничиваем ввод в поле только числами с заданной точностью, чтобы предотвратить некорректные значения и обеспечить целостность данных.
             validator = QDoubleValidator(
@@ -409,12 +413,14 @@ class GammaMainWindow(QMainWindow):
         buttonLayout.addStretch()
         
         self.resetButton = QPushButton('Reset')
+        self.resetButton.setEnabled(False)
         self.resetButton.clicked.connect(self._onResetClicked)
         buttonLayout.addWidget(self.resetButton)
         
         buttonLayout.addStretch()
         
         self.saveButton = QPushButton('Apply')
+        self.saveButton.setEnabled(False)
         self.saveButton.clicked.connect(self._onSaveClicked)
         buttonLayout.addWidget(self.saveButton)
         
@@ -426,9 +432,7 @@ class GammaMainWindow(QMainWindow):
         # и возможных предупреждениях.
         self.statusBar = QStatusBar()
         self.setStatusBar(self.statusBar)
-        self.statusBar.showMessage('Ready')
-        
-        self.statusBar.showMessage('Loading initial settings...')
+        self.statusBar.showMessage('Loading initial settings…')
 
         self.worker = InitializationWorker(self.gammaCore)
         self.worker.finished.connect(self._onInitializationComplete)
@@ -467,10 +471,21 @@ class GammaMainWindow(QMainWindow):
             'green': current['green'],
             'blue': current['blue']
         }
-        self._updateReferenceImage(self.currentGamma)
 
         for slider in self.sliders.values():
             slider.blockSignals(False)
+
+        self.referenceLabel.setText('')
+        for vi in self.valueInputs.values():
+            vi.setPlaceholderText('')
+            vi.setEnabled(True)
+        for s in self.sliders.values():
+            s.setEnabled(True)
+        self.resetButton.setEnabled(True)
+        self.saveButton.setEnabled(True)
+        self._gammaControlsReady = True
+
+        self._updateReferenceImage(self.currentGamma)
 
         self._updateWarningIndicator()
         raw_diag = self.gammaCore.getLastRawOutput().strip()
@@ -531,6 +546,8 @@ class GammaMainWindow(QMainWindow):
     after a short delay, preventing excessive `xgamma` calls during slider
     or input field adjustments.
     """
+        if not self._gammaControlsReady:
+            return
         if self.pendingGamma is None:
             return
         
@@ -580,6 +597,8 @@ class GammaMainWindow(QMainWindow):
     
     def _adjustActiveSlider(self, delta):
         """Adjust active slider value by delta ticks."""
+        if not self._gammaControlsReady:
+            return
         if not self.activeChannel:
             return
         
@@ -596,6 +615,8 @@ class GammaMainWindow(QMainWindow):
             channel (str): Channel name ('red', 'green', 'blue', 'all')
             value (int): New slider value
         """
+        if not self._gammaControlsReady:
+            return
         if self.isUpdating:
             return
         
@@ -731,6 +752,8 @@ class GammaMainWindow(QMainWindow):
         Args:
             channel (str): Channel name
         """
+        if not self._gammaControlsReady:
+            return
         if self.isUpdating:
             return
         
@@ -766,6 +789,8 @@ class GammaMainWindow(QMainWindow):
 
     def _onResetClicked(self):
         """Handle reset button click."""
+        if not self._gammaControlsReady:
+            return
         self.isUpdating = True
 
         # Блокируем сигналы от ползунков, чтобы избежать нежелательных обновлений GUI во время операции сброса.
@@ -813,6 +838,8 @@ class GammaMainWindow(QMainWindow):
 
     def _onSaveClicked(self):
         """Handle save button click."""
+        if not self._gammaControlsReady:
+            return
         # Получаем текущие значения гаммы из ползунков, чтобы сформировать команду xgamma для сохранения в автозапуск.
         red = self._sliderValueToGamma(self.sliders['red'].value())
         green = self._sliderValueToGamma(self.sliders['green'].value())
